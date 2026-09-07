@@ -288,12 +288,14 @@
     const subJson = await biliFetchJson(playerData.subtitleUrl);
     const body = subJson.body || [];
     if (!body.length) throw new Error('字幕内容为空');
-    return body.map((item, i) => ({
-      index: i,
+    const parsed = body.map((item) => ({
       start: typeof item.from === 'number' ? item.from : 0,
       end: typeof item.to === 'number' ? item.to : 0,
       text: stripBilingual(item.content),
     })).filter((c) => c.text && c.end > c.start);
+    // 按句尾标点把碎片重组为完整句子(修复半句话被单独合成的割裂感)
+    return DubCommon.mergeIntoSentences(parsed)
+      .map((c, i) => ({ index: i, start: c.start, end: c.end, text: c.text }));
   }
 
   /** 配音期间隐藏 B 站原生字幕面板(用户可能开着 CC) */
@@ -572,12 +574,25 @@
 
   injectStyles();
 
+  let patrolTimer = null; // 巡检定时器(上下文失效时停止)
+
   /**
    * 持续保证按钮存在 + 检测分 P / 视频切换:
    * B 站切分 P 是 pushState 无刷新导航,没有 yt-navigate-finish,
    * 通过比较 URL 视频标识变化来重置配音状态
+   *
+   * 注意:扩展重载后本脚本上下文即失效(chrome.runtime.getURL 会同步抛
+   * "Extension context invalidated"),必须先自检再巡检,失效则停止巡检,
+   * 等用户刷新页面加载新版脚本
    */
   function ensureInjected() {
+    if (!DubCommon.isContextValid()) {
+      if (patrolTimer) {
+        clearInterval(patrolTimer);
+        patrolTimer = null;
+      }
+      return;
+    }
     const vk = getVideoKey();
     if (!vk) return;
     if (lastVideoKey && vk.key !== lastVideoKey) {
@@ -594,5 +609,5 @@
     injectButton();
   }
   ensureInjected();
-  setInterval(ensureInjected, 2000);
+  patrolTimer = setInterval(ensureInjected, 2000);
 })();

@@ -39,19 +39,19 @@ async function getOptions() {
   return options || {};
 }
 
-/** 翻译缓存 key:videoId:index */
+/** 翻译缓存 key:v2 = 语义重组后的句子序号(旧按碎片的缓存作废) */
 function transKey(videoId, index) {
-  return `${videoId}:${index}:zh`;
+  return `trans:v2:${videoId}:${index}:zh`;
 }
 
-/** 音频缓存 key:含音色/语速,避免换设置后命中旧音频 */
+/** 音频缓存 key:含音色/语速,避免换设置后命中旧音频;v2 = 语义重组后序号 */
 function audioKey(videoId, index, options) {
-  return `audio:${videoId}:${options.voiceId || 'default'}:${options.speed || 1}:${index}`;
+  return `audio:v2:${videoId}:${options.voiceId || 'default'}:${options.speed || 1}:${index}`;
 }
 
-/** 合并块缓存 key:以首尾句 index 标识一个块;v2 = 词级对齐(旧 key 作废,防吞字段落复用) */
+/** 合并块缓存 key:以首尾句 index 标识一个块;v3 = 语义重组后序号(旧 key 作废) */
 function chunkKey(videoId, chunk, options) {
-  return `chunk:v2:${videoId}:${options.voiceId || 'default'}:${options.speed || 1}:` +
+  return `chunk:v3:${videoId}:${options.voiceId || 'default'}:${options.speed || 1}:` +
     `${chunk[0].index}-${chunk[chunk.length - 1].index}`;
 }
 

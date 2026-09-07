@@ -110,11 +110,54 @@
     }
   }
 
+  /**
+   * 按语义把碎片字幕重组为完整句子。
+   * 字幕分段按显示节奏切(一句连续的话常被拆成两三段),逐段 TTS 听感割裂;
+   * 重组规则:累积片段直到句尾标点(. ! ? ; … 。! ? ;,忽略收尾引号括号),
+   * 且满足:片段时间隔 < maxGap(跨长停顿必断)、合并时长 ≤ maxDuration、
+   * 字符数 ≤ maxChars。任一到限即断句,控制单句长度与开口延迟。
+   * @param {Array} cues [{start, end, text}](按时间升序)
+   * @returns {Array} 同构数组(未带 index,调用方自行编号)
+   */
+  function mergeIntoSentences(cues, { maxGap = 1.5, maxDuration = 15, maxChars = 120 } = {}) {
+    const SENT_END = /[.!?;…。!?;]/;
+    const tailOf = (s) => s.replace(/[\s"'」』)\]}>]+$/u, ''); // 剥收尾引号括号,保留句尾标点
+    const isEnd = (s) => {
+      const t = tailOf(s);
+      const last = t.charAt(t.length - 1);
+      return SENT_END.test(last);
+    };
+    const isCJK = (s) => /[一-鿿]/.test(s);
+    const join = (a, b) => (isCJK(a) || isCJK(b) ? a + b : a + ' ' + b);
+
+    const result = [];
+    for (const cue of cues) {
+      const last = result[result.length - 1];
+      if (last) {
+        const gap = cue.start - last.end;
+        const mergedText = join(last.text, cue.text);
+        const canMerge =
+          gap < maxGap &&
+          cue.end - last.start <= maxDuration &&
+          mergedText.length <= maxChars &&
+          !isEnd(last.text); // 上一段已是完整句子则不再并入
+        if (canMerge) {
+          last.text = mergedText;
+          last.end = cue.end;
+          continue;
+        }
+      }
+      result.push({ start: cue.start, end: cue.end, text: cue.text });
+    }
+    return result;
+  }
+
   globalThis.DubCommon = {
     base64ToBytes,
     encodeWav,
     createChunkHandler,
     safeSendMessage,
     isContextValid,
+    mergeIntoSentences,
   };
 })();

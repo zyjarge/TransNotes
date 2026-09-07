@@ -295,11 +295,13 @@
     return { cues: parseToCues(json), skipTranslate: false, route: '英文 + DeepSeek' };
   }
 
-  /** timedtext JSON → 合并后的带 index 句子序列;内容为空时抛错 */
+  /** timedtext JSON → 语义重组后的完整句子序列;内容为空时抛错 */
   function parseToCues(json) {
     const parsed = Subtitles.parseTimedText(json);
     if (parsed.length === 0) throw new Error('字幕内容为空');
-    return Subtitles.assignIndexes(Subtitles.mergeCues(parsed));
+    // 先合并过碎片段,再按句尾标点重组为完整句子(修复半句话被单独合成的割裂感)
+    const merged = Subtitles.mergeCues(parsed);
+    return Subtitles.assignIndexes(DubCommon.mergeIntoSentences(merged));
   }
 
   /**
@@ -752,18 +754,31 @@
 
   injectStyles();
 
+  let patrolTimer = null; // 巡检定时器(上下文失效时停止)
+
   /**
    * 持续保证按钮存在:YouTube 播放器初始化/界面重绘时会重建控制栏,
    * 一次性注入的按钮可能被抹掉,因此每 2 秒巡检一次,缺失即补
    * (injectButton 幂等:按钮已存在时只补状态浮层,开销极小)
+   *
+   * 注意:扩展重载后本脚本上下文即失效(chrome.runtime.getURL 会同步抛
+   * "Extension context invalidated"),必须先自检再巡检,失效则停止巡检,
+   * 等用户刷新页面加载新版脚本
    */
   function ensureInjected() {
+    if (!DubCommon.isContextValid()) {
+      if (patrolTimer) {
+        clearInterval(patrolTimer);
+        patrolTimer = null;
+      }
+      return;
+    }
     if (location.pathname.indexOf('/watch') !== 0 &&
         location.pathname.indexOf('/shorts/') !== 0) return;
     injectButton();
   }
   ensureInjected();
-  setInterval(ensureInjected, 2000);
+  patrolTimer = setInterval(ensureInjected, 2000);
 
   // SPA 导航:切视频时重置全部状态(按钮由巡检自动补注入)
   document.addEventListener('yt-navigate-finish', () => {
