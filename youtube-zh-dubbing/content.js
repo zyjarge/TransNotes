@@ -861,6 +861,44 @@
     getLocalCues: () => cues,
   });
 
+  /**
+   * 侧边栏自动抓字幕(不开配音):复用配音的三级字幕通道抓取并写入共享缓存,
+   * 之后由 Background 按需补翻译。needTranslate=true 表示是英文轨,还需 AI 翻译
+   */
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'FETCH_SUBS') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        if (!playerInfo) throw new Error('播放器数据未就绪,请稍后重试');
+        const sub = await fetchSubtitles();
+        const id = getCurrentVideoId();
+        const videoKey = 'yt:' + id;
+        await VdcCache.saveSubtitles(videoKey, {
+          site: 'youtube',
+          videoId: id,
+          title: (playerInfo && playerInfo.title) || document.title || '',
+          url: location.href,
+          route: sub.route,
+        }, sub.cues.map((c) => {
+          const item = { index: c.index, start: c.start, end: c.end, text: c.text };
+          if (sub.skipTranslate) item.zh = c.text; // 中文轨/自动翻译通道:原文即中文
+          return item;
+        }));
+        return {
+          ok: true,
+          videoKey,
+          needTranslate: !sub.skipTranslate,
+          count: sub.cues.length,
+          route: sub.route,
+        };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
+
   // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;

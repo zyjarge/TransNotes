@@ -4,9 +4,12 @@
  * 观看中低摩擦捕捉「时间戳 + 当前字幕 + 可选截图 + 我的输入」:
  * - 触发:快捷键 Ctrl/Cmd+Shift+S,或站点脚本注入的播放器按钮(调用 DubCapture.open())
  * - 触发后视频暂停,弹出极简浮层(Shadow DOM 隔离样式,不被页面样式污染)
+ * - 键盘隔离:浮层内按键在 window 捕获阶段就地拦截(早于站点的 document 监听),
+ *   只拦监听器不拦默认行为——输入框照常打字,空格不会触发页面暂停/播放
  * - 预填充:时间戳 + 当前字幕(中文译文优先,来自共享缓存 VdcCache,不重调 AI)
  * - 截图:默认不插入;点「插入截图」经 Background chrome.tabs.captureVisibleTab
- *   截取当前画面(先隐藏浮层再截,避免浮层入镜;绕开跨域 canvas 污染问题)
+ *   截取当前画面(先隐藏浮层再截,避免浮层入镜;绕开跨域 canvas 污染问题),
+ *   再按视频元素矩形裁剪,只保留视频画面
  * - 保存:Ctrl/Cmd+Enter;Esc 取消;关闭后若之前是播放中则自动续播
  *
  * 与配音引擎的协调:暂停走 video.pause()(触发 SyncPlayer 的 pause 事件停音),
@@ -38,6 +41,26 @@
     initDraftPrompt();
   }
 
+  /**
+   * 键盘隔离:浮层开着时,浮层内的按键在 window 捕获阶段就地拦截。
+   * YouTube 等站点的快捷键监听挂在 document(捕获或冒泡),都晚于 window 捕获;
+   * shadow 内的事件经重定向后 target 为宿主元素,据此识别"我们的按键"。
+   * stopImmediatePropagation 只阻止其他监听器,不影响默认行为——
+   * 输入框照常打字,但空格/k/j/l 等不会再触发页面快捷键。
+   * 浮层自身的保存/取消快捷键也在此处理(输入框的 keydown 已收不到事件)。
+   */
+  window.addEventListener('keydown', (e) => {
+    if (!host || e.target !== host) return;
+    e.stopImmediatePropagation();
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      save();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      close(true);
+    }
+  }, true);
+
   /** 快捷键:Ctrl+Shift+S(Win/Linux)或 Cmd+Shift+S(macOS) */
   function onKeydown(e) {
     if (!e.shiftKey || !(e.ctrlKey || e.metaKey)) return;
@@ -55,7 +78,11 @@
   /** 打开捕捉浮层(快捷键与播放器按钮共用入口) */
   async function open() {
     if (host || !hooks) return;
-    if (!DubCommon.isContextValid()) return;
+    // 扩展重载后旧脚本上下文失效:静默返回会让按钮"点了没反应",必须明示
+    if (!DubCommon.isContextValid()) {
+      toast('扩展已更新,请刷新页面后重试');
+      return;
+    }
     const video = hooks.getVideo && hooks.getVideo();
     if (!video) return;
     const videoKey = hooks.getVideoKey && hooks.getVideoKey();
@@ -109,6 +136,9 @@
       '.head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}',
       '.title{font-size:14px;font-weight:600}',
       '.ts{color:#3ea6ff;font-variant-numeric:tabular-nums;font-size:13px}',
+      '.x{background:transparent;border:none;color:#999;font-size:18px;padding:0 2px;',
+      'line-height:1;cursor:pointer;margin-left:10px}',
+      '.x:hover{color:#fff}',
       '.quote{margin:0 0 10px;padding:8px 10px;border-left:3px solid #3ea6ff;',
       'background:rgba(255,255,255,.06);border-radius:0 6px 6px 0;color:#ddd;font-size:13px}',
       '.quote .zh{display:block;color:#fff}',
@@ -130,7 +160,7 @@
       '</style>',
       '<div class="panel">',
       '<div class="head"><span class="title">记录想法</span>',
-      '<span class="ts"></span></div>',
+      '<span><span class="ts"></span><button class="x" type="button" title="关闭(Esc)">×</button></span></div>',
       '<blockquote class="quote" style="display:none"><span class="zh"></span><span class="en"></span></blockquote>',
       '<textarea placeholder="此刻的想法…"></textarea>',
       '<img class="thumb" alt="截图预览">',
@@ -149,26 +179,13 @@
 
     root.querySelector('.ts').textContent = fmtTime(session.t);
 
+    // 保存/取消快捷键在 window 捕获阶段的键盘隔离里统一处理(见文件上部),
+    // 这里只接按钮;输入框的 keydown 已收不到事件(传播在 window 捕获即被拦截,
+    // 默认输入行为不受影响)
     const textarea = root.querySelector('textarea');
-    textarea.addEventListener('keydown', (e) => {
-      e.stopPropagation(); // 不冒泡给页面/我们的快捷键监听
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        save();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        close(true);
-      }
-    });
     root.querySelector('.save').addEventListener('click', save);
     root.querySelector('.shot').addEventListener('click', () => takeShot(root));
-    // 浮层开着时全局 Esc 也可取消(焦点不在输入框时)
-    host.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        close(true);
-      }
-    });
+    root.querySelector('.x').addEventListener('click', () => close(true));
     textarea.focus();
   }
 
@@ -185,7 +202,38 @@
     }
   }
 
-  /** 截图:先隐藏浮层(否则会入镜),经 Background captureVisibleTab 截取当前画面 */
+  /**
+   * 把整页截图按视频矩形裁剪,只保留视频画面。
+   * content script 里可直接读视频元素位置;截图 dataURL 是扩展自己生成的,
+   * canvas 无跨域污染。视频不在可视区时退回整页截图。
+   */
+  async function cropToVideo(dataUrl) {
+    const v = session && session.video;
+    if (!v) return dataUrl;
+    const r = v.getBoundingClientRect();
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('截图解码失败'));
+      i.src = dataUrl;
+    });
+    // captureVisibleTab 图像尺寸 = 视口 CSS 尺寸 × DPR,按比例换算裁剪区域
+    const scaleX = img.naturalWidth / (window.innerWidth || img.naturalWidth);
+    const scaleY = img.naturalHeight / (window.innerHeight || img.naturalHeight);
+    const sx = Math.max(0, r.left * scaleX);
+    const sy = Math.max(0, r.top * scaleY);
+    const sw = Math.min(img.naturalWidth - sx, r.width * scaleX);
+    const sh = Math.min(img.naturalHeight - sy, r.height * scaleY);
+    if (sw < 10 || sh < 10) return dataUrl;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(sw);
+    canvas.height = Math.round(sh);
+    canvas.getContext('2d')
+      .drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.7);
+  }
+
+  /** 截图:先隐藏浮层(否则会入镜),经 Background captureVisibleTab 截取后裁剪到视频区域 */
   async function takeShot(root) {
     const btn = root.querySelector('.shot');
     const err = root.querySelector('.err');
@@ -201,10 +249,11 @@
     if (resp && resp.ok && resp.dataUrl) {
       const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       try {
-        await VdcCache.saveShot(id, resp.dataUrl);
+        const dataUrl = await cropToVideo(resp.dataUrl);
+        await VdcCache.saveShot(id, dataUrl);
         session.shotId = id;
         const thumb = root.querySelector('.thumb');
-        thumb.src = resp.dataUrl;
+        thumb.src = dataUrl;
         thumb.style.display = 'block';
         btn.textContent = '重新截图';
       } catch (e) {
@@ -255,6 +304,23 @@
     if (resume && s && s.wasPlaying && s.video.paused) {
       s.video.play().catch(() => {});
     }
+  }
+
+  /** 播放器内的轻提示(3 秒自动消失),用于扩展上下文失效等必须明示的场景 */
+  function toast(text) {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'position:absolute;bottom:72px;left:50%;transform:translateX(-50%);z-index:101';
+    const root = el.attachShadow({ mode: 'open' });
+    root.innerHTML =
+      '<style>.t{background:rgba(20,20,20,.9);color:#fff;padding:8px 14px;border-radius:6px;' +
+      'font:13px/1.5 -apple-system,"PingFang SC",sans-serif;}</style>' +
+      '<div class="t"></div>';
+    root.querySelector('.t').textContent = text;
+    const container = (hooks && hooks.getPlayerContainer && hooks.getPlayerContainer()) || document.body;
+    if (container === document.body) el.style.position = 'fixed';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
   }
 
   /* ---------------- 草稿生成提示条 ----------------

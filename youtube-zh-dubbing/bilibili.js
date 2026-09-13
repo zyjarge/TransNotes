@@ -688,6 +688,33 @@
     getLocalCues: () => cues,
   });
 
+  /**
+   * 侧边栏自动抓字幕(不开配音):复用配音的字幕链路写入共享缓存。
+   * B 站字幕已是中文,无需补翻译(needTranslate 恒为 false)
+   */
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'FETCH_SUBS') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        const vk = getVideoKey();
+        if (!vk) throw new Error('不在视频页');
+        const list = await fetchSubtitles();
+        await VdcCache.saveSubtitles(vk.key, {
+          site: 'bilibili',
+          videoId: vk.key,
+          title: (playerData && playerData.title) || document.title || '',
+          url: location.href,
+          route: 'B 站中文字幕',
+        }, list.map((c) => ({ index: c.index, start: c.start, end: c.end, text: c.text, zh: c.text })));
+        return { ok: true, videoKey: vk.key, needTranslate: false, count: list.length, route: 'B 站中文字幕' };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
+
   // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;

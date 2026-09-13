@@ -49,6 +49,17 @@
     .quote-item { border-left: 3px solid #ddd; padding: 4px 10px; margin: 8px 0; color: #555; font-size: 13px; }
     .quote-item .t { color: #3ea6ff; font-size: 12px; cursor: pointer; }
 
+    /* 自动笔记 */
+    .an-h2 { font-size: 14px; font-weight: 700; margin: 12px 0 4px; color: #222; }
+    .an-h3 { font-size: 13px; font-weight: 600; margin: 8px 0 2px; color: #333; }
+    .an-p, .an-li { font-size: 13px; color: #333; margin: 2px 0; white-space: pre-wrap; word-break: break-word; }
+    .an-li { padding-left: 14px; position: relative; }
+    .an-li::before { content: '•'; position: absolute; left: 4px; color: #999; }
+    .an-li[data-indent="1"] { padding-left: 26px; }
+    .an-li[data-indent="2"] { padding-left: 38px; }
+    .an-ts { color: #3ea6ff; cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .an-ts:hover { text-decoration: underline; }
+
     /* 笔记视图 */
     .note { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
     .note .ts { color: #3ea6ff; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px;
@@ -74,7 +85,7 @@
     <button data-tab="subs" class="on">字幕</button>
     <button data-tab="overview">概览</button>
     <button data-tab="notes">笔记</button>
-    <button data-tab="draft">草稿导出</button>
+    <button data-tab="draft">笔记导出</button>
   </nav>
 
   <section id="tab-subs" class="on">
@@ -94,6 +105,14 @@
   </section>
 
   <section id="tab-notes">
+    <h2>自动笔记</h2>
+    <div class="row">
+      <select id="anote-tpl" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px"></select>
+      <button id="gen-anote" class="primary">生成笔记</button>
+    </div>
+    <div id="anote"></div>
+
+    <h2>我的笔记</h2>
     <div id="notes"></div>
   </section>
 

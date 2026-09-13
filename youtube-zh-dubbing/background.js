@@ -556,7 +556,9 @@ async function handleGenDraft(msg) {
     };
     const md = await VdcNotes.generateDraft(msg.videoKey, ai, {
       forceOverview: !!msg.forceOverview,
-      includeBilingual: msg.includeBilingual !== false,
+      sections: options.exportSections,
+      level: options.overviewLevel,
+      autoNoteTemplate: options.noteTemplate,
     });
     return { ok: true, md };
   } catch (e) {
@@ -589,8 +591,66 @@ async function handleGenOverview(msg) {
       baseUrl: options.translateBaseUrl,
       apiKey: options.translateApiKey,
       model: options.translateModel,
-    }, !!msg.force);
+    }, !!msg.force, options.overviewLevel);
     return { ok: true, overview };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * 批量翻译共享缓存里缺中文的字幕(侧边栏自动流程用:抓完英文轨后补中文)。
+ * 与配音管线共用 trans:v2 缓存——先查后翻、翻完写回,两边互不重复调 AI;
+ * 每批写完立即回填共享缓存,侧边栏字幕视图随批次渐进变双语。
+ */
+async function handleTranslateSubs(msg) {
+  try {
+    const doc = await VdcCache.getSubtitles(msg.videoKey);
+    if (!doc || !doc.cues || !doc.cues.length) return { ok: false, error: '无字幕缓存' };
+    const options = await getOptions();
+    const vid = doc.videoId || msg.videoKey; // trans:v2 缓存键用的原始 videoId
+    const pending = doc.cues.filter((c) => !c.zh);
+    for (let from = 0; from < pending.length; from += TRANSLATE_BATCH) {
+      const slice = pending.slice(from, from + TRANSLATE_BATCH);
+      const need = [];
+      for (const c of slice) {
+        const cached = await getTranslation(vid, c.index);
+        if (cached) c.zh = cached;
+        else need.push(c);
+      }
+      if (need.length) {
+        const results = await Translate.translateBatch(need.map((c) => c.text), {
+          baseUrl: options.translateBaseUrl,
+          apiKey: options.translateApiKey,
+          model: options.translateModel,
+        });
+        need.forEach((c, i) => {
+          c.zh = results[i];
+          setTranslation(vid, c.index, results[i]).catch(() => {});
+        });
+      }
+      const updates = {};
+      for (const c of slice) if (c.zh) updates[c.index] = c.zh;
+      await VdcCache.setCueZh(msg.videoKey, updates);
+    }
+    return { ok: true, translated: pending.length };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * 生成自动笔记(学习笔记模板;按模板分别缓存,force 强制重建)
+ */
+async function handleGenAutoNote(msg) {
+  try {
+    const options = await getOptions();
+    const note = await VdcNotes.generateAutoNote(msg.videoKey, {
+      baseUrl: options.translateBaseUrl,
+      apiKey: options.translateApiKey,
+      model: options.translateModel,
+    }, { template: msg.template, force: !!msg.force });
+    return { ok: true, note };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
   }
@@ -614,6 +674,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleGenDraft(msg);
       case 'GEN_OVERVIEW':
         return await handleGenOverview(msg);
+      case 'TRANSLATE_SUBS':
+        return await handleTranslateSubs(msg);
+      case 'GEN_AUTONOTE':
+        return await handleGenAutoNote(msg);
       case 'OPEN_PANEL':
         return await handleOpenPanel(sender);
       default:

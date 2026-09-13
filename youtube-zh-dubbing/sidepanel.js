@@ -6,7 +6,7 @@
  *   配音进行中接收 DUB_PROGRESS,自动高亮当前句并滚动跟随
  * - 概览:AI 章节 + 关键引述(与翻译同 provider,缓存 oview:{videoKey}),点击时间戳跳转
  * - 笔记:观看中捕捉的时间戳笔记,点时间戳跳回视频,可删除
- * - 草稿导出:Markdown 草稿生成/编辑(防抖自动保存)/导出 Obsidian
+ * - 笔记导出:Markdown 草稿生成/编辑(防抖自动保存)/导出 Obsidian
  *
  * 当前视频识别:轮询活动标签页 URL(YouTube watch/shorts、B 站 video 页,含分 P)。
  */
@@ -82,12 +82,15 @@
     });
   });
 
-  function renderCues() {
+  function renderCues(preserveView) {
     const wrap = $('cues');
+    // 配音进行中译文分批到达会触发刷新:保持滚动位置与高亮,不打扰正在浏览的用户
+    const scrollTop = preserveView ? document.scrollingElement.scrollTop : 0;
+    const keepHl = preserveView ? lastHlIdx : -1;
     wrap.innerHTML = '';
     lastHlIdx = -1;
     if (!currentCues.length) {
-      wrap.innerHTML = '<div class="empty">暂无字幕缓存——开一次配音后,字幕(含中文译文)会出现在这里</div>';
+      wrap.innerHTML = '<div class="empty">暂无字幕缓存——正在自动抓取,稍候即出</div>';
       return;
     }
     currentCues.forEach((c, i) => {
@@ -117,7 +120,28 @@
       div.addEventListener('click', () => seekTo(c.start));
       wrap.appendChild(div);
     });
+    if (preserveView) {
+      document.scrollingElement.scrollTop = scrollTop;
+      if (keepHl >= 0 && wrap.children[keepHl]) {
+        wrap.children[keepHl].classList.add('now');
+        lastHlIdx = keepHl;
+      }
+    }
   }
+
+  // 页面侧写入(捕捉笔记、字幕译文回填、草稿生成)时即时刷新对应视图,
+  // 不必等视频切换的轮询
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !currentKey) return;
+    if (changes['notes:' + currentKey]) renderNotes();
+    if (changes['draft:' + currentKey]) renderDraft();
+    if (changes['subs:' + currentKey]) {
+      VdcCache.getSubtitles(currentKey).then((doc) => {
+        currentCues = (doc && doc.cues) || [];
+        renderCues(true);
+      });
+    }
+  });
 
   /** 配音进度联动:高亮 t 所在句并滚动到可视区域(仅句切换时滚动) */
   function highlightAt(t) {
@@ -151,7 +175,7 @@
     wrap.innerHTML = '';
     const ov = currentKey ? await VdcNotes.getOverview(currentKey) : null;
     if (!ov) {
-      wrap.innerHTML = '<div class="empty">尚未生成概览——点上方按钮生成(与翻译共用 AI provider)</div>';
+      wrap.innerHTML = '<div class="empty">概览会自动生成;也可点上方按钮按当前粒度设置重新生成</div>';
       return;
     }
     if (ov.chapters && ov.chapters.length) {
@@ -217,6 +241,129 @@
     }
   });
 
+  /* ---------------- 自动笔记(学习笔记模板) ----------------
+   * 模板默认取设置页「默认笔记模板」(长期偏好),页签下拉可临时换风格;
+   * 点「生成笔记」才调 AI(手动触发控制成本);按 视频×模板 分别缓存。
+   */
+
+  /** 行内渲染:**粗体** 与 [mm:ss] 时间戳(可点击跳回视频) */
+  function appendInline(container, text) {
+    const boldParts = text.split(/\*\*(.+?)\*\*/g);
+    boldParts.forEach((part, i) => {
+      if (i % 2 === 1) {
+        const b = document.createElement('b');
+        appendTs(b, part);
+        container.appendChild(b);
+      } else {
+        appendTs(container, part);
+      }
+    });
+  }
+
+  function appendTs(container, text) {
+    const re = /\[(\d{1,3}:\d{2}(?::\d{2})?)\]/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const span = document.createElement('span');
+      span.className = 'an-ts';
+      span.textContent = m[1];
+      span.title = '跳回视频对应位置';
+      span.addEventListener('click', () => seekTo(tsToSec(m[1])));
+      container.appendChild(span);
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  function tsToSec(s) {
+    const p = s.split(':').map(Number);
+    return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+  }
+
+  /** 极简 Markdown 渲染:##/### 标题、- 列表(带缩进)、段落;其余按段落处理 */
+  function renderMd(md, container) {
+    container.innerHTML = '';
+    for (const raw of md.split('\n')) {
+      const line = raw.replace(/\s+$/, '');
+      if (!line.trim()) continue;
+      const h3 = line.match(/^###\s+(.*)/);
+      const h2 = !h3 && line.match(/^##\s+(.*)/);
+      const li = !h3 && !h2 && line.match(/^(\s*)[-*]\s+(.*)/);
+      const el = document.createElement('div');
+      if (h3) {
+        el.className = 'an-h3';
+        appendInline(el, h3[1]);
+      } else if (h2) {
+        el.className = 'an-h2';
+        appendInline(el, h2[1]);
+      } else if (li) {
+        el.className = 'an-li';
+        el.dataset.indent = String(Math.min(2, Math.floor(li[1].length / 2)));
+        appendInline(el, li[2]);
+      } else {
+        el.className = 'an-p';
+        appendInline(el, line);
+      }
+      container.appendChild(el);
+    }
+  }
+
+  async function initAnoteTemplates() {
+    const sel = $('anote-tpl');
+    sel.innerHTML = '';
+    for (const [id, t] of Object.entries(VdcNotes.NOTE_TEMPLATES)) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = t.name;
+      sel.appendChild(opt);
+    }
+    // 默认选中设置页的长期偏好
+    const { options } = await chrome.storage.local.get('options');
+    sel.value = (options && options.noteTemplate) || VdcNotes.DEFAULT_TEMPLATE;
+  }
+
+  async function renderAutoNote() {
+    const wrap = $('anote');
+    const sel = $('anote-tpl');
+    wrap.innerHTML = '';
+    if (!currentKey) {
+      $('gen-anote').textContent = '生成笔记';
+      return;
+    }
+    const note = await VdcNotes.getAutoNote(currentKey, sel.value);
+    $('gen-anote').textContent = note ? '重新生成' : '生成笔记';
+    if (!note) {
+      wrap.innerHTML = '<div class="empty">选择模板后点「生成笔记」——按模板风格自动生成整片学习笔记</div>';
+      return;
+    }
+    renderMd(note.md, wrap);
+  }
+
+  $('anote-tpl').addEventListener('change', renderAutoNote); // 临时换风格:有缓存秒出
+  $('gen-anote').addEventListener('click', async () => {
+    if (!currentKey) { setStatus('当前标签页不是视频页', true); return; }
+    $('gen-anote').disabled = true;
+    setStatus('正在生成笔记(可能需要十几秒)...');
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: 'GEN_AUTONOTE',
+        videoKey: currentKey,
+        template: $('anote-tpl').value,
+        force: true, // 用户显式点击 = 按当前选中模板重建
+      });
+      if (!resp || !resp.ok) throw new Error((resp && resp.error) || '生成失败');
+      renderMd(resp.note.md, $('anote'));
+      $('gen-anote').textContent = '重新生成';
+      setStatus('笔记已生成');
+    } catch (e) {
+      setStatus((e && e.message) || String(e), true);
+    } finally {
+      $('gen-anote').disabled = false;
+    }
+  });
+
   /* ---------------- 笔记视图 ---------------- */
 
   async function renderNotes() {
@@ -276,7 +423,8 @@
 
   async function renderDraft() {
     const draft = currentKey ? await VdcNotes.getDraft(currentKey) : null;
-    if (!saveTimer) $('draft').value = (draft && draft.md) || ''; // 用户编辑中不覆盖
+    // 用户编辑过(含自动保存触发的回填事件)时不覆盖编辑器内容,避免光标跳动
+    if (!saveTimer && !dirty) $('draft').value = (draft && draft.md) || '';
     dirty = false;
   }
 
@@ -365,10 +513,58 @@
       $('title').textContent = (doc && doc.title) || '当前视频(暂无字幕缓存)';
       $('meta').textContent = doc
         ? `${doc.site || ''} · ${doc.cues.length} 句字幕 · ${doc.route || ''}`
-        : '未开过配音,没有字幕缓存;开一次配音后字幕/概览/笔记都可用';
+        : '暂无字幕缓存,正在自动抓取字幕并生成概览…';
     }
     renderCues();
-    await Promise.all([renderOverview(), renderNotes(), renderDraft()]);
+    await Promise.all([renderOverview(), renderNotes(), renderDraft(), renderAutoNote()]);
+  }
+
+  /* ---------------- 自动准备:抓字幕 → 补翻译 → 生成概览 ----------------
+   * 侧边栏打开或切换视频时,若当前视频还没有字幕缓存,自动走一遍准备流程,
+   * 无需用户先开配音或手动点生成。每个视频每次会话只自动跑一次。
+   */
+
+  const autoEnsured = new Set();
+
+  async function autoEnsure(key) {
+    if (!key || autoEnsured.has(key) || currentTabId == null) return;
+    autoEnsured.add(key);
+    try {
+      let doc = await VdcCache.getSubtitles(key);
+      if (!doc || !doc.cues || !doc.cues.length) {
+        setStatus('正在自动抓取字幕...');
+        const resp = await chrome.tabs.sendMessage(currentTabId, { type: 'FETCH_SUBS' })
+          .catch(() => null);
+        if (!resp || !resp.ok) {
+          setStatus('字幕自动抓取失败:' + ((resp && resp.error) || '请在视频页刷新后重试'), true);
+          return;
+        }
+        render(); // 字幕文档已写入,刷新各视图
+      }
+      // 英文轨还需补中文(与配音管线共用缓存,不重复调 AI)
+      doc = await VdcCache.getSubtitles(key);
+      if (doc && doc.cues.some((c) => !c.zh)) {
+        setStatus('正在翻译字幕...');
+        const tr = await chrome.runtime.sendMessage({ type: 'TRANSLATE_SUBS', videoKey: key });
+        if (!tr || !tr.ok) {
+          setStatus('字幕翻译失败:' + ((tr && tr.error) || ''), true);
+          return;
+        }
+      }
+      // 自动生成概览(已有缓存则直接命中,零成本)
+      if (!(await VdcNotes.getOverview(key))) {
+        setStatus('正在自动生成概览...');
+        const r = await chrome.runtime.sendMessage({ type: 'GEN_OVERVIEW', videoKey: key });
+        if (!r || !r.ok) {
+          setStatus('概览生成失败:' + ((r && r.error) || ''), true);
+          return;
+        }
+        renderOverview();
+      }
+      setStatus('');
+    } catch (e) {
+      setStatus('自动准备失败:' + ((e && e.message) || e), true);
+    }
   }
 
   // 跟随当前标签页:2 秒轮询(侧边栏打开期间开销极小)
@@ -378,12 +574,15 @@
       currentKey = key;
       clearTimeout(saveTimer);
       saveTimer = null;
+      dirty = false;
       render();
+      autoEnsure(key);
     }
   }, 2000);
 
   detectCurrentVideo().then((key) => {
     currentKey = key;
-    render();
+    initAnoteTemplates().then(() => render());
+    autoEnsure(key);
   });
 })();

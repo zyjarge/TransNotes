@@ -13,6 +13,9 @@
     translateBaseUrl: 'https://api.deepseek.com',
     translateApiKey: '',
     translateModel: 'deepseek-chat',
+    overviewLevel: 'normal',
+    noteTemplate: 'cornell',
+    exportSections: { meta: true, overview: true, notes: true, autoNote: true, subtitles: true },
   };
 
   const VOICES = [
@@ -52,6 +55,14 @@
     $('translateBaseUrl').value = merged.translateBaseUrl || DEFAULT_OPTIONS.translateBaseUrl;
     $('translateApiKey').value = merged.translateApiKey || '';
     $('translateModel').value = merged.translateModel || DEFAULT_OPTIONS.translateModel;
+    $('overviewLevel').value = merged.overviewLevel || DEFAULT_OPTIONS.overviewLevel;
+    $('noteTemplate').value = merged.noteTemplate || DEFAULT_OPTIONS.noteTemplate;
+    const es = Object.assign({}, DEFAULT_OPTIONS.exportSections, merged.exportSections || {});
+    $('expMeta').checked = !!es.meta;
+    $('expOverview').checked = !!es.overview;
+    $('expNotes').checked = !!es.notes;
+    $('expAutoNote').checked = es.autoNote !== false;
+    $('expSubs').checked = !!es.subtitles;
   }
 
   async function save() {
@@ -63,6 +74,15 @@
       translateBaseUrl: $('translateBaseUrl').value.trim().replace(/\/+$/, ''),
       translateApiKey: $('translateApiKey').value.trim(),
       translateModel: $('translateModel').value.trim(),
+      overviewLevel: $('overviewLevel').value,
+      noteTemplate: $('noteTemplate').value,
+      exportSections: {
+        meta: $('expMeta').checked,
+        overview: $('expOverview').checked,
+        notes: $('expNotes').checked,
+        autoNote: $('expAutoNote').checked,
+        subtitles: $('expSubs').checked,
+      },
     };
     await chrome.storage.local.set({ options });
     showStatus('已保存');
