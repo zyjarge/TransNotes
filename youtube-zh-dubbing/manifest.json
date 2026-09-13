@@ -2,9 +2,12 @@
   "manifest_version": 3,
   "name": "YouTube 中文配音",
   "version": "0.1.0",
-  "description": "将 YouTube 视频英文字幕实时翻译并合成中文语音,与原画面同步播放,提升观看学习效率",
+  "description": "YouTube/B 站视频实时中文配音 + 观看中捕捉时间戳笔记,自动生成笔记草稿并可导出到 Obsidian",
   "permissions": [
-    "storage"
+    "storage",
+    "unlimitedStorage",
+    "sidePanel",
+    "downloads"
   ],
   "host_permissions": [
     "*://www.youtube.com/*",
@@ -16,14 +19,17 @@
     "*://*.minimaxi.chat/*",
     "*://*.minimax.chat/*",
     "*://api.bilibili.com/*",
-    "*://*.hdslb.com/*"
-  ],
-  "optional_host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "*://*.hdslb.com/*",
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "打开视频笔记面板"
   },
   "content_scripts": [
     {
@@ -34,6 +40,8 @@
         "lib/subtitles.js",
         "lib/syncplayer.js",
         "lib/dubcommon.js",
+        "lib/cache.js",
+        "capture.js",
         "content.js"
       ],
       "run_at": "document_start"
@@ -45,6 +53,8 @@
       "js": [
         "lib/syncplayer.js",
         "lib/dubcommon.js",
+        "lib/cache.js",
+        "capture.js",
         "bilibili.js"
       ],
       "run_at": "document_idle"

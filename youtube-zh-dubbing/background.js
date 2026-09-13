@@ -14,9 +14,14 @@
  * 注意:MV3 下 Service Worker 可能随时休眠;合成结果全部通过
  * chrome.tabs.sendMessage 即时推送,不依赖 SW 长期存活。
  */
-importScripts('lib/translate.js', 'lib/minimax_tts.js', 'lib/wbi.js');
+importScripts('lib/cache.js', 'lib/notes.js', 'lib/translate.js', 'lib/minimax_tts.js', 'lib/wbi.js');
 
 'use strict';
+
+// 点击扩展图标即打开侧边栏(笔记面板)
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((e) => console.warn('[ytb-tts] sidePanel 设置失败:', e));
 
 const TRANSLATE_BATCH = 25;             // 每批翻译句数
 const FIRST_BATCH = 5;                  // 首批小批量翻译:缩短"开口"延迟
@@ -81,15 +86,14 @@ async function setAudioBase64(key, base64) {
   memAudioCache.set(key, base64);
   const stored = await chrome.storage.local.get(null);
   const sizeOf = (s) => s.length * 0.75;
-  let total = Object.keys(stored).reduce((sum, k) => sum + sizeOf(stored[k] || ''), 0);
+  // 只统计音频条目:subs:/notes:/shot: 等共享缓存数据不计入音频配额
+  const audioEntries = Object.keys(stored)
+    .filter((k) => k.startsWith('audio:') || k.startsWith('chunk:'))
+    .sort((a, b) => (a > b ? 1 : -1));
+  let total = audioEntries.reduce((sum, k) => sum + sizeOf(stored[k] || ''), 0);
   if (total + sizeOf(base64) > AUDIO_CACHE_LIMIT) {
     // 淘汰 audio:/chunk: 前缀中最旧的条目(按 key 字典序即按 index 序)
-    const audioKeys = Object.keys(stored)
-      .filter((k) => k.startsWith('audio:') || k.startsWith('chunk:'))
-      .sort((a, b) => (a > b ? 1 : -1));
-    const drop = audioKeys.slice(0, Math.max(1, Math.floor(audioKeys.length * 0.3)));
-    const dropObj = {};
-    for (const k of drop) dropObj[k] = undefined;
+    const drop = audioEntries.slice(0, Math.max(1, Math.floor(audioEntries.length * 0.3)));
     await chrome.storage.local.remove(drop);
     for (const k of drop) memAudioCache.delete(k);
   }
@@ -132,6 +136,7 @@ async function handleStart(msg, sender) {
 
   const task = {
     videoId: msg.videoId,
+    videoKey: msg.videoKey || msg.videoId, // 共享缓存 key(yt:{id} / bili:{bvid}:p{n})
     tabId,
     cues: msg.cues,
     options,
@@ -142,6 +147,20 @@ async function handleStart(msg, sender) {
   };
   tasks.set(msg.videoId, task);
   console.log('[ytb-tts] 任务启动:', msg.videoId, '共', msg.cues.length, '句');
+
+  // 字幕写入共享缓存(笔记/双语视图复用,不重复调 AI);
+  // skipTranslate 通道字幕本身即中文,zh 直接置为原文
+  VdcCache.saveSubtitles(task.videoKey, {
+    site: msg.site || '',
+    videoId: msg.videoId,
+    title: msg.title || '',
+    url: msg.url || '',
+    route: msg.route || '',
+  }, msg.cues.map((c) => {
+    const item = { index: c.index, start: c.start, end: c.end, text: c.text };
+    if (task.skipTranslate) item.zh = c.text;
+    return item;
+  })).catch((e) => console.warn('[ytb-tts] 字幕缓存写入失败:', e));
 
   // 流水线在后台推进,不阻塞响应
   runPipeline(task).catch((e) => {
@@ -206,6 +225,16 @@ async function runPipeline(task) {
           setTranslation(videoId, cue.index, results[i]).catch(() => {});
         });
       }
+    }
+
+    // 本批译文回填共享缓存(笔记/双语视图直接读取;skipTranslate 通道已在启动时写入)
+    if (!task.skipTranslate) {
+      const zhUpdates = {};
+      for (const cue of slice) {
+        if (cue.zh) zhUpdates[cue.index] = cue.zh;
+      }
+      VdcCache.setCueZh(task.videoKey, zhUpdates)
+        .catch((e) => console.warn('[ytb-tts] 译文回填缓存失败:', e));
     }
 
     // 合成并即时推送本批
@@ -495,6 +524,78 @@ async function handleBiliFetch(msg) {
   }
 }
 
+/**
+ * 截取当前标签页画面(捕捉浮层「插入截图」用)。
+ * captureVisibleTab 从浏览器层面截图,绕开跨域视频 canvas 污染问题;
+ * 需要 <all_urls> host 权限(见 manifest)。返回 jpeg dataURL。
+ */
+async function handleCaptureShot(sender) {
+  try {
+    const windowId = sender.tab && sender.tab.windowId;
+    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
+      format: 'jpeg',
+      quality: 70,
+    });
+    return { ok: true, dataUrl };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * 生成笔记草稿:AI 概览(复用翻译 provider)+ 时间戳笔记 + 双语字幕。
+ * 字幕译文来自共享缓存,不重复调 AI;草稿写入 draft:{videoKey}。
+ */
+async function handleGenDraft(msg) {
+  try {
+    const options = await getOptions();
+    const ai = {
+      baseUrl: options.translateBaseUrl,
+      apiKey: options.translateApiKey,
+      model: options.translateModel,
+    };
+    const md = await VdcNotes.generateDraft(msg.videoKey, ai, {
+      forceOverview: !!msg.forceOverview,
+      includeBilingual: msg.includeBilingual !== false,
+    });
+    return { ok: true, md };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * 尝试打开侧边栏(页面内「生成草稿」按钮点击后调用)。
+ * 需要用户手势;content script 的点击手势经消息传递在部分版本不生效,
+ * 失败时静默,由页面提示用户点扩展图标。
+ */
+async function handleOpenPanel(sender) {
+  try {
+    const windowId = sender.tab && sender.tab.windowId;
+    await chrome.sidePanel.open({ windowId });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+/**
+ * 仅生成 AI 概览(侧边栏「概览」页签用;结果缓存 oview:{videoKey})
+ */
+async function handleGenOverview(msg) {
+  try {
+    const options = await getOptions();
+    const overview = await VdcNotes.generateOverview(msg.videoKey, {
+      baseUrl: options.translateBaseUrl,
+      apiKey: options.translateApiKey,
+      model: options.translateModel,
+    }, !!msg.force);
+    return { ok: true, overview };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
 /* ---------------- 消息路由 ---------------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
@@ -507,6 +608,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleBiliFetch(msg);
       case 'BILI_PLAYER_V2':
         return await handleBiliPlayerV2(msg);
+      case 'CAPTURE_SHOT':
+        return await handleCaptureShot(sender);
+      case 'GEN_DRAFT':
+        return await handleGenDraft(msg);
+      case 'GEN_OVERVIEW':
+        return await handleGenOverview(msg);
+      case 'OPEN_PANEL':
+        return await handleOpenPanel(sender);
       default:
         return { ok: false, error: '未知消息类型' };
     }

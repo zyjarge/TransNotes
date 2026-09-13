@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>视频笔记</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px 14px; font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; color: #222; }
+    h1 { font-size: 15px; margin: 0 0 2px; word-break: break-all; }
+    .meta { color: #888; font-size: 12px; margin-bottom: 10px; word-break: break-all; }
+    #status { font-size: 12px; color: #0a7d33; margin-bottom: 8px; min-height: 16px; }
+    #status.err { color: #c00; }
+
+    nav { display: flex; gap: 2px; border-bottom: 1px solid #e5e5e5; margin-bottom: 10px; }
+    nav button { border: none; background: none; padding: 6px 12px; font-size: 13px; cursor: pointer;
+                 color: #666; border-bottom: 2px solid transparent; border-radius: 0; }
+    nav button.on { color: #3ea6ff; border-bottom-color: #3ea6ff; font-weight: 600; }
+    nav button:hover { color: #222; background: none; }
+
+    button { cursor: pointer; border: 1px solid #ccc; border-radius: 6px; background: #fff;
+             padding: 5px 12px; font-size: 13px; }
+    button:hover { background: #f2f2f2; }
+    button.primary { background: #3ea6ff; border-color: #3ea6ff; color: #fff; font-weight: 600; }
+    button.primary:hover { background: #6fbdff; }
+    button:disabled { opacity: .5; cursor: default; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+    .row .spacer { margin-left: auto; }
+
+    section { display: none; }
+    section.on { display: block; }
+    .empty { color: #999; font-size: 13px; padding: 20px 0; text-align: center; }
+
+    /* 字幕视图 */
+    .modes { display: flex; gap: 4px; margin-bottom: 8px; }
+    .modes button { padding: 2px 10px; font-size: 12px; }
+    .modes button.on { background: #eef6ff; border-color: #3ea6ff; color: #3ea6ff; }
+    .cue { padding: 4px 8px; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
+    .cue:hover { background: #f5f5f5; }
+    .cue.now { background: #eef6ff; border-left-color: #3ea6ff; }
+    .cue .t { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px; margin-right: 6px; }
+    .cue .en { display: block; color: #999; font-size: 12px; }
+
+    /* 概览视图 */
+    .chapter { padding: 6px 8px; cursor: pointer; border-radius: 6px; }
+    .chapter:hover { background: #f5f5f5; }
+    .chapter .t { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .chapter .ct { font-weight: 600; }
+    .chapter .cs { color: #666; font-size: 12px; }
+    .quote-item { border-left: 3px solid #ddd; padding: 4px 10px; margin: 8px 0; color: #555; font-size: 13px; }
+    .quote-item .t { color: #3ea6ff; font-size: 12px; cursor: pointer; }
+
+    /* 笔记视图 */
+    .note { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    .note .ts { color: #3ea6ff; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px;
+                cursor: pointer; }
+    .note .ts:hover { text-decoration: underline; }
+    .note .del { float: right; border: none; background: none; color: #bbb; padding: 0 4px; font-size: 14px; }
+    .note .del:hover { color: #c00; }
+    .note .quote { color: #777; font-size: 12px; margin: 4px 0; }
+    .note .comment { white-space: pre-wrap; word-break: break-word; }
+    .note img { max-width: 100%; border-radius: 4px; margin-top: 4px; }
+
+    /* 草稿视图 */
+    #draft { width: 100%; min-height: 320px; resize: vertical; font: 12px/1.5 ui-monospace, monospace;
+             border: 1px solid #ddd; border-radius: 6px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1 id="title">视频笔记</h1>
+  <div class="meta" id="meta"></div>
+  <div id="status"></div>
+
+  <nav>
+    <button data-tab="subs" class="on">字幕</button>
+    <button data-tab="overview">概览</button>
+    <button data-tab="notes">笔记</button>
+    <button data-tab="draft">草稿导出</button>
+  </nav>
+
+  <section id="tab-subs" class="on">
+    <div class="modes">
+      <button data-mode="both" class="on">双语</button>
+      <button data-mode="zh">中文</button>
+      <button data-mode="en">原文</button>
+    </div>
+    <div id="cues"></div>
+  </section>
+
+  <section id="tab-overview">
+    <div class="row">
+      <button id="gen-overview">生成 / 重新生成概览</button>
+    </div>
+    <div id="overview"></div>
+  </section>
+
+  <section id="tab-notes">
+    <div id="notes"></div>
+  </section>
+
+  <section id="tab-draft">
+    <div class="row">
+      <button id="gen" class="primary">生成 / 更新草稿</button>
+      <button id="export">导出到 Obsidian</button>
+      <button id="pick-vault">选择 vault 文件夹</button>
+    </div>
+    <textarea id="draft" placeholder="点击上方「生成 / 更新草稿」自动生成笔记,可在此基础上编辑"></textarea>
+  </section>
+
+  <script src="lib/cache.js"></script>
+  <script src="lib/notes.js"></script>
+  <script src="lib/exporter.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

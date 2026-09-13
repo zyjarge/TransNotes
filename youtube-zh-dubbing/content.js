@@ -48,6 +48,7 @@
   injectMainWorldScript();
 
   const BTN_CLASS = 'ytb-tts-player-btn'; // 播放器控制栏内的配音按钮
+  const CAP_BTN_CLASS = 'ytb-tts-capture-btn'; // 播放器控制栏内的「记录想法」按钮
   const STATUS_ID = 'ytb-tts-status';     // 播放器内左上角的状态浮层
   const STYLE_ID = 'ytb-tts-style';
   const MSG_SOURCE = 'ytb-tts-injected';
@@ -97,6 +98,14 @@
       'background:rgba(0,0,0,.55);cursor:pointer}',
       '.ytb-tts-player-btn.ytb-tts-shorts-btn:hover{background:rgba(0,0,0,.75)}',
       '.ytb-tts-player-btn.ytb-tts-shorts-btn img{width:22px;height:22px}',
+      // 「记录想法」按钮:与配音按钮同风格(Shorts 浮动位置在配音按钮下方)
+      '.ytb-tts-capture-btn{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px}',
+      '.ytb-tts-capture-btn svg{width:22px;height:22px;opacity:.9;pointer-events:none;fill:#fff}',
+      '.ytb-tts-capture-btn:hover svg{opacity:1}',
+      '.ytb-tts-capture-btn.ytb-tts-shorts-btn{position:absolute;top:104px;right:12px;',
+      'z-index:60;width:40px;height:40px;border:none;border-radius:50%;',
+      'background:rgba(0,0,0,.55);cursor:pointer}',
+      '.ytb-tts-capture-btn.ytb-tts-shorts-btn:hover{background:rgba(0,0,0,.75)}',
       // 层级必须压过播放器错误层 .ytp-error(z-index:44,实测 Shorts 会遮挡我们)
       '#ytb-tts-status{position:absolute;top:12px;left:12px;z-index:60;padding:4px 10px;',
       'border-radius:4px;background:rgba(0,0,0,.7);color:#fff;font-size:13px;',
@@ -175,6 +184,52 @@
       btn.classList.add('ytb-tts-shorts-btn');
       player.appendChild(btn);
       return ensureStatus();
+    }
+    return false;
+  }
+
+  /**
+   * 注入「记录想法」按钮:位置跟随配音按钮(控制栏内嵌 / Shorts 浮动),
+   * 点击打开捕捉浮层(与快捷键 Ctrl/Cmd+Shift+S 等效)
+   */
+  function injectCaptureButton() {
+    if (!globalThis.DubCapture) return false;
+    injectStyles();
+    const controlsRaw = document.querySelector('.ytp-right-controls');
+    const controls = controlsRaw && controlsRaw.getBoundingClientRect().width > 0
+      ? controlsRaw : null;
+    const player = getPlayerContainer();
+
+    const existing = document.querySelector('.' + CAP_BTN_CLASS);
+    if (existing) {
+      if (controls) {
+        existing.classList.remove('ytb-tts-shorts-btn');
+        if (existing.parentNode !== controls) controls.insertBefore(existing, controls.firstChild);
+      } else if (isShortsPage() && player) {
+        existing.classList.add('ytb-tts-shorts-btn');
+        if (existing.closest('#movie_player') !== player) player.appendChild(existing);
+      }
+      return true;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'ytp-button ' + CAP_BTN_CLASS;
+    btn.title = '记录想法(Ctrl+Shift+S)';
+    btn.setAttribute('aria-label', '记录想法');
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25z' +
+      'M20.7 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+    btn.addEventListener('click', () => DubCapture.open());
+
+    if (controls) {
+      controls.insertBefore(btn, controls.firstChild);
+      return true;
+    }
+    if (isShortsPage() && player) {
+      btn.classList.add('ytb-tts-shorts-btn');
+      player.appendChild(btn);
+      return true;
     }
     return false;
   }
@@ -484,6 +539,11 @@
     const resp = await DubCommon.safeSendMessage({
       type: 'DUB_START',
       videoId: activeVideoId,
+      videoKey: 'yt:' + activeVideoId,   // 共享缓存 key(字幕/笔记共用)
+      site: 'youtube',
+      title: (playerInfo && playerInfo.title) || document.title || '',
+      url: location.href,
+      route: sub.route,
       startIndex,
       skipTranslate: sub.skipTranslate, // 中文字幕轨/自动翻译通道:跳过 DeepSeek 直通 TTS
       cues: cues.map((c) => ({ index: c.index, start: c.start, end: c.end, text: c.text })),
@@ -621,6 +681,15 @@
         stopDubbing();
         setState('error');
         setStatus(msg.message || '合成失败', '#c00');
+        break;
+      }
+      case 'VDC_SEEK': {
+        // 侧边栏时间戳跳转:跳到指定位置并继续播放
+        const v = getVideoElement();
+        if (v && typeof msg.ts === 'number') {
+          v.currentTime = msg.ts;
+          if (v.paused) v.play().catch(() => {});
+        }
         break;
       }
       default:
@@ -776,9 +845,43 @@
     if (location.pathname.indexOf('/watch') !== 0 &&
         location.pathname.indexOf('/shorts/') !== 0) return;
     injectButton();
+    injectCaptureButton();
   }
   ensureInjected();
   patrolTimer = setInterval(ensureInjected, 2000);
+
+  // 捕捉浮层接入(快捷键在 capture.js 内部注册;此处提供站点 hooks)
+  DubCapture.init({
+    getVideo: getVideoElement,
+    getVideoKey: () => {
+      const id = getCurrentVideoId();
+      return id ? 'yt:' + id : null;
+    },
+    getPlayerContainer,
+    getLocalCues: () => cues,
+  });
+
+  // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;
+    if (globalThis.DubCapture && DubCapture.isOpen()) return;
+    const t = e.target;
+    if (t && t.closest && t.closest('input, textarea, [contenteditable="true"]')) return;
+    e.preventDefault();
+    onToggleClick();
+  }, true);
+
+  // 配音进行中向侧边栏广播播放进度(字幕视图联动高亮)
+  setInterval(() => {
+    if (state !== 'active' || !activeVideoId || !DubCommon.isContextValid()) return;
+    const v = getVideoElement();
+    if (!v || v.paused) return;
+    DubCommon.safeSendMessage({
+      type: 'DUB_PROGRESS',
+      videoKey: 'yt:' + activeVideoId,
+      t: v.currentTime,
+    });
+  }, 1000);
 
   // SPA 导航:切视频时重置全部状态(按钮由巡检自动补注入)
   document.addEventListener('yt-navigate-finish', () => {

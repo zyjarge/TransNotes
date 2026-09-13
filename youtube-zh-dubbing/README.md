@@ -30,6 +30,38 @@
 支持:暂停 / 拖动进度条 / 倍速播放(自动重新对齐);无英文字幕的视频会给出明确提示。
 配音期间原声保持静音(调音量会被自动恢复静音,想听原声请点「停止配音」)。
 
+### 捕捉想法(记笔记)
+
+观看中按 `Ctrl+Shift+S`(macOS 为 `Cmd+Shift+S`)或点播放器上的「记录想法」按钮:
+视频暂停并弹出浮层,自动带入当前时间戳和字幕(中文译文来自配音共享缓存,不重复调 AI);
+可输入想法、可选「插入截图」;`Ctrl+Enter` 保存后自动续播,`Esc` 取消。
+笔记存在本机 `chrome.storage.local`(`notes:{视频key}`),截图为 `shot:{id}`(jpeg)。
+
+### 笔记草稿与 Obsidian 导出
+
+视频播放结束或中途切走时,播放器顶部会出现「生成笔记草稿?」提示条(由你决定,不自动生成);
+也可以随时点工具栏扩展图标打开**笔记侧边栏**,手动点「生成 / 更新草稿」。
+
+- 草稿结构:YAML frontmatter(标题/链接/日期/标签)+ AI 概览(章节 + 关键引述,与翻译共用同一家 AI provider)+ 我的时间戳笔记 + 双语字幕
+- 侧边栏里可直接编辑草稿(自动保存)
+- 「导出到 Obsidian」:首次会让你授权 vault 文件夹(File System Access),之后 Markdown 直写 vault 根目录、截图写入 `attachments/`(相对路径引用,迁移不丢图);不支持或未授权时退化为下载到 `下载目录/video-notes/`
+
+### 笔记侧边栏(主界面)
+
+点工具栏扩展图标打开,四个页签自动跟随当前标签页的视频:
+
+- **字幕**:共享缓存的双语字幕(双语/中文/原文切换);配音进行中自动高亮当前句并滚动跟随;点任意句跳回视频对应位置
+- **概览**:AI 章节 + 关键引述,点击时间戳跳转;可手动生成/重新生成
+- **笔记**:捕捉的时间戳笔记列表(含截图),点时间戳跳回视频,可删除
+- **草稿导出**:笔记草稿的生成、编辑与 Obsidian 导出
+
+### 快捷键
+
+| 快捷键 | 功能 |
+| --- | --- |
+| `Ctrl+Shift+S`(macOS `Cmd+Shift+S`) | 捕捉想法(记笔记) |
+| `Ctrl+Shift+D`(macOS 同为 Ctrl+Shift+D) | 开关中文配音 |
+
 ## 项目结构
 
 ```
@@ -39,12 +71,17 @@ youtube-zh-dubbing/
 ├── content.js             # YouTube:UI 按钮、字幕抓取、播放引擎集成
 ├── injected.js            # YouTube 主世界:读取 ytInitialPlayerResponse、hook 带 pot 的字幕请求
 ├── bilibili.js            # B 站:UI 按钮、字幕 API 抓取(ai-zh 直通)、分 P 巡检
+├── capture.js             # 捕捉浮层(两站共用):快捷键/按钮触发,时间戳+字幕+截图+想法;草稿生成提示条
+├── sidepanel.html/js      # 笔记侧边栏:草稿生成/编辑、笔记列表、Obsidian 导出
 ├── options.html/js        # 设置页
 ├── lib/
 │   ├── subtitles.js       # YouTube timedtext JSON3 解析、片段合并、轨道选择
 │   ├── translate.js       # OpenAI 兼容翻译封装(分块、按行对应)
 │   ├── minimax_tts.js     # MiniMax TTS 封装(hex 解码、限流自适应队列、多句合并+句级字幕)
 │   ├── syncplayer.js      # 时间戳对齐播放引擎(两站共用)
+│   ├── cache.js           # 共享缓存层:字幕译文/笔记/截图(笔记复用配音译文,不重调 AI)
+│   ├── notes.js           # 笔记整合:AI 概览(与翻译同 provider)+ Markdown 草稿组装
+│   ├── exporter.js        # Obsidian 导出:File System Access 直写 vault,退化为 chrome.downloads
 │   └── dubcommon.js       # 站点无关公共件(base64/WAV 编码、合并块切分、安全消息)
 └── icons/                 # 插件图标
 ```
