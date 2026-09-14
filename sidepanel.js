@@ -281,7 +281,10 @@
       span.className = 'an-ts';
       span.textContent = m[1];
       span.title = '跳回视频对应位置';
-      span.addEventListener('click', () => seekTo(tsToSec(m[1])));
+      // 注意:循环结束后 m 为 null(exec 无匹配返回 null 退出循环),
+      // 闭包必须捕获当次匹配值,不能直接引用 m
+      const sec = tsToSec(m[1]);
+      span.addEventListener('click', () => seekTo(sec));
       container.appendChild(span);
       last = m.index + m[0].length;
     }
@@ -321,13 +324,121 @@
     }
   }
 
+  /* ---------------- 草稿 Markdown 预览 ----------------
+   * 轻量渲染(非完整 CommonMark):frontmatter、#/##/### 标题、- 列表、
+   * **粗体**、[text](url) 链接、[mm:ss] 时间戳(可点击跳回视频)、
+   * 截图 ![](attachments/{shotId}.jpg) 按 id 从缓存取 dataURL 显示。
+   */
+
+  /** 行内渲染:**粗体**、[text](url) 链接、[mm:ss] 时间戳 */
+  function appendInlineRich(container, text) {
+    const boldParts = text.split(/\*\*(.+?)\*\*/g);
+    boldParts.forEach((part, i) => {
+      if (i % 2 === 1) {
+        const b = document.createElement('b');
+        appendLinkTs(b, part);
+        container.appendChild(b);
+      } else {
+        appendLinkTs(container, part);
+      }
+    });
+  }
+
+  function appendLinkTs(container, text) {
+    const re = /\[([^\]]+)\]\((https?:[^)]+)\)|\[(\d{1,3}:\d{2}(?::\d{2})?)\]/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)));
+      if (m[2]) {
+        const a = document.createElement('a');
+        a.href = m[2];
+        a.textContent = m[1];
+        a.target = '_blank';
+        a.rel = 'noopener';
+        container.appendChild(a);
+      } else {
+        const span = document.createElement('span');
+        span.className = 'an-ts';
+        span.textContent = m[3];
+        span.title = '跳回视频对应位置';
+        const sec = tsToSec(m[3]); // 循环结束后 m 为 null,闭包须捕获当次值
+        span.addEventListener('click', () => seekTo(sec));
+        container.appendChild(span);
+      }
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  async function renderDraftPreview(md) {
+    const wrap = $('draft-preview');
+    wrap.innerHTML = '';
+    let body = md || '';
+    const fm = body.match(/^\s*---\n([\s\S]*?)\n---\n?/);
+    if (fm) {
+      const pre = document.createElement('div');
+      pre.className = 'md-frontmatter';
+      pre.textContent = fm[1];
+      wrap.appendChild(pre);
+      body = body.slice(fm[0].length);
+    }
+    for (const raw of body.split('\n')) {
+      const line = raw.replace(/\s+$/, '');
+      if (!line.trim()) continue;
+      const imgM = line.match(/^!\[[^\]]*\]\(attachments\/(.+?)\.jpg\)\s*$/);
+      if (imgM) {
+        const img = document.createElement('img');
+        img.className = 'md-img';
+        img.alt = '截图';
+        VdcCache.getShot(imgM[1]).then((u) => { if (u) img.src = u; });
+        wrap.appendChild(img);
+        continue;
+      }
+      const h1 = line.match(/^#\s+(.*)/);
+      const h3 = !h1 && line.match(/^###\s+(.*)/);
+      const h2 = !h1 && !h3 && line.match(/^##\s+(.*)/);
+      const li = !h1 && !h3 && !h2 && line.match(/^(\s*)[-*]\s+(.*)/);
+      const el = document.createElement('div');
+      if (h1) {
+        el.className = 'md-h1';
+        appendInlineRich(el, h1[1]);
+      } else if (h3) {
+        el.className = 'an-h3';
+        appendInlineRich(el, h3[1]);
+      } else if (h2) {
+        el.className = 'an-h2';
+        appendInlineRich(el, h2[1]);
+      } else if (li) {
+        el.className = 'an-li';
+        el.dataset.indent = String(Math.min(2, Math.floor(li[1].length / 2)));
+        appendInlineRich(el, li[2]);
+      } else {
+        el.className = 'an-p';
+        appendInlineRich(el, line);
+      }
+      wrap.appendChild(el);
+    }
+  }
+
+  /* 编辑 / 预览 切换;切到预览时按编辑器当前内容渲染(含未保存的修改) */
+  document.querySelectorAll('[data-dmode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-dmode]').forEach((b) => b.classList.toggle('on', b === btn));
+      const preview = btn.dataset.dmode === 'preview';
+      $('draft').style.display = preview ? 'none' : '';
+      $('draft-preview').style.display = preview ? 'block' : 'none';
+      if (preview) renderDraftPreview($('draft').value);
+    });
+  });
+
   async function initAnoteTemplates() {
     const sel = $('anote-tpl');
     sel.innerHTML = '';
     for (const [id, t] of Object.entries(VdcNotes.NOTE_TEMPLATES)) {
       const opt = document.createElement('option');
       opt.value = id;
-      opt.textContent = t.name;
+      opt.textContent = t.desc ? `${t.name} — ${t.desc}` : t.name;
       sel.appendChild(opt);
     }
     // 默认选中设置页的长期偏好
@@ -549,14 +660,16 @@
     await VdcNotes.saveDraft(currentKey, $('draft').value); // 导出以编辑器内为准
     $('export').disabled = true;
     try {
-      // 未选择过 vault 文件夹时先弹目录选择器(需用户手势,正好在点击里)
-      if (VdcExporter.isFsSupported() && !(await VdcExporter.getVault().catch(() => null))) {
-        await VdcExporter.pickVault();
+      // 没有任何可用位置(默认 vault 与临时位置都未设置)时先弹目录选择器(需用户手势,正好在点击里)
+      if (VdcExporter.isFsSupported() && !VdcExporter.getTempVault() &&
+          !(await VdcExporter.getVault().catch(() => null))) {
+        await VdcExporter.pickVault(); // 首次选择即存为默认 vault
       }
       const result = await VdcExporter.exportDraft(currentKey, $('draft').value);
       setStatus(result.method === 'vault'
         ? `已写入 vault:${result.fileName}(含 ${result.shotCount} 张截图)`
         : `已下载到 下载目录/video-notes/(含 ${result.shotCount} 张截图),请手动移入 vault`);
+      refreshVaultLabel();
     } catch (e) {
       setStatus('导出失败:' + ((e && e.message) || e), true);
     } finally {
@@ -564,15 +677,42 @@
     }
   }
 
+  /** 导出位置标签:临时位置(本次会话)> 设置页默认 vault > 下载目录兜底 */
+  async function refreshVaultLabel() {
+    const label = $('vault-label');
+    const resetBtn = $('reset-vault');
+    const temp = VdcExporter.getTempVault();
+    if (temp) {
+      label.textContent = `导出位置:${temp.name}(临时,仅本次会话)`;
+      resetBtn.style.display = '';
+      return;
+    }
+    resetBtn.style.display = 'none';
+    if (!VdcExporter.isFsSupported()) {
+      label.textContent = '导出位置:下载目录/video-notes/(浏览器不支持文件夹直写)';
+      return;
+    }
+    const dir = await VdcExporter.peekVault().catch(() => null);
+    label.textContent = dir
+      ? `导出位置:${dir.name}(默认)`
+      : '导出位置:下载目录/video-notes/(未设置默认 vault,可在设置页配置)';
+  }
+
   $('gen').addEventListener('click', () => generate().catch((e) => setStatus(e.message, true)));
   $('export').addEventListener('click', () => exportDraft());
-  $('pick-vault').addEventListener('click', async () => {
+  $('switch-vault').addEventListener('click', async () => {
     try {
-      const dir = await VdcExporter.pickVault();
-      setStatus('已选择 vault:' + dir.name);
+      const dir = await VdcExporter.pickTempVault();
+      setStatus('本次会话临时导出到:' + dir.name);
     } catch (e) {
       if (e && e.name !== 'AbortError') setStatus('选择失败:' + e.message, true);
     }
+    refreshVaultLabel();
+  });
+  $('reset-vault').addEventListener('click', () => {
+    VdcExporter.clearTempVault();
+    refreshVaultLabel();
+    setStatus('已恢复默认导出位置');
   });
 
   $('draft').addEventListener('input', () => {
@@ -610,6 +750,7 @@
         : '暂无字幕缓存,正在自动抓取字幕并生成概览…';
     }
     renderCues();
+    refreshVaultLabel();
     await Promise.all([renderOverview(), renderNotes(), renderDraft(), renderAutoNote()]);
   }
 

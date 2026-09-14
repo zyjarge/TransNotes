@@ -11,7 +11,8 @@
     #status { font-size: 12px; color: #0a7d33; margin-bottom: 8px; min-height: 16px; }
     #status.err { color: #c00; }
 
-    nav { display: flex; gap: 2px; border-bottom: 1px solid #e5e5e5; margin-bottom: 10px; }
+    nav { display: flex; gap: 2px; border-bottom: 1px solid #e5e5e5; margin-bottom: 10px;
+          position: sticky; top: 0; background: #fff; z-index: 10; padding-top: 2px; }
     nav button { border: none; background: none; padding: 6px 12px; font-size: 13px; cursor: pointer;
                  color: #666; border-bottom: 2px solid transparent; border-radius: 0; }
     nav button.on { color: #3ea6ff; border-bottom-color: #3ea6ff; font-weight: 600; }
@@ -93,8 +94,21 @@
     .notes-pane.on { display: block; }
 
     /* 草稿视图 */
-    #draft { width: 100%; min-height: 320px; resize: vertical; font: 12px/1.5 ui-monospace, monospace;
+    #draft { width: 100%; height: 62vh; min-height: 320px; resize: vertical;
+             font: 12px/1.5 ui-monospace, monospace;
              border: 1px solid #ddd; border-radius: 6px; padding: 8px; }
+    .vault-row { font-size: 12px; color: #888; }
+    .vault-row button { padding: 2px 10px; font-size: 12px; }
+
+    /* 草稿预览 */
+    #draft-preview { height: 62vh; min-height: 320px; overflow-y: auto;
+                     border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; }
+    #draft-preview .md-frontmatter { color: #888; font-size: 12px; white-space: pre-wrap;
+                                     font-family: ui-monospace, monospace;
+                                     border-bottom: 1px dashed #e5e5e5; margin-bottom: 8px; padding-bottom: 6px; }
+    #draft-preview .md-h1 { font-size: 16px; font-weight: 700; margin: 10px 0 6px; }
+    #draft-preview .md-img { max-width: 100%; border-radius: 4px; margin: 6px 0; }
+    #draft-preview a { color: #3ea6ff; }
   </style>
 </head>
 <body>
@@ -150,9 +164,19 @@
     <div class="row">
       <button id="gen" class="primary">生成 / 更新草稿</button>
       <button id="export">导出到 Obsidian</button>
-      <button id="pick-vault">选择 vault 文件夹</button>
+      <span class="spacer"></span>
+      <div class="modes" style="margin-bottom:0">
+        <button data-dmode="edit" class="on">编辑</button>
+        <button data-dmode="preview">预览</button>
+      </div>
+    </div>
+    <div class="row vault-row">
+      <span id="vault-label">导出位置:…</span>
+      <button id="switch-vault" title="临时切换到另一个文件夹(仅本次会话,不改变默认设置)">临时切换…</button>
+      <button id="reset-vault" style="display:none" title="恢复为设置页配置的默认 vault">恢复默认</button>
     </div>
     <textarea id="draft" placeholder="点击上方「生成 / 更新草稿」自动生成笔记,可在此基础上编辑"></textarea>
+    <div id="draft-preview" style="display:none"></div>
   </section>
 
   <script src="lib/cache.js"></script>

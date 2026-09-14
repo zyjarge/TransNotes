@@ -13,6 +13,7 @@
     translateBaseUrl: 'https://api.deepseek.com',
     translateApiKey: '',
     translateModel: 'deepseek-chat',
+    disableThinking: false,
     overviewLevel: 'normal',
     noteTemplate: 'cornell',
     exportSections: { meta: true, overview: true, notes: true, autoNote: true, subtitles: true },
@@ -55,6 +56,7 @@
     $('translateBaseUrl').value = merged.translateBaseUrl || DEFAULT_OPTIONS.translateBaseUrl;
     $('translateApiKey').value = merged.translateApiKey || '';
     $('translateModel').value = merged.translateModel || DEFAULT_OPTIONS.translateModel;
+    $('disableThinking').checked = !!merged.disableThinking;
     $('overviewLevel').value = merged.overviewLevel || DEFAULT_OPTIONS.overviewLevel;
     $('noteTemplate').value = merged.noteTemplate || DEFAULT_OPTIONS.noteTemplate;
     const es = Object.assign({}, DEFAULT_OPTIONS.exportSections, merged.exportSections || {});
@@ -74,6 +76,7 @@
       translateBaseUrl: $('translateBaseUrl').value.trim().replace(/\/+$/, ''),
       translateApiKey: $('translateApiKey').value.trim(),
       translateModel: $('translateModel').value.trim(),
+      disableThinking: $('disableThinking').checked,
       overviewLevel: $('overviewLevel').value,
       noteTemplate: $('noteTemplate').value,
       exportSections: {
@@ -101,5 +104,33 @@
     });
   });
 
+  /* ---------------- 默认 Obsidian vault 文件夹 ----------------
+   * 句柄持久化在 IndexedDB(与侧边栏同源共享)。展示用 peekVault(只读句柄,
+   * 不请求授权),避免页面加载时因无用户手势触发 requestPermission 报错。
+   */
+
+  async function refreshVaultName() {
+    const el = $('vault-name');
+    if (!VdcExporter.isFsSupported()) {
+      el.textContent = '当前浏览器不支持文件夹直写,导出时将下载到「下载目录/video-notes/」';
+      $('pick-vault').disabled = true;
+      return;
+    }
+    const dir = await VdcExporter.peekVault().catch(() => null);
+    el.textContent = dir ? `已选择:${dir.name}` : '未选择';
+  }
+
+  $('pick-vault').addEventListener('click', async () => {
+    try {
+      const dir = await VdcExporter.pickVault();
+      $('vault-name').textContent = `已选择:${dir.name}`;
+    } catch (e) {
+      if (e && e.name !== 'AbortError') {
+        showStatus('选择失败:' + (e.message || e));
+      }
+    }
+  });
+
   load();
+  refreshVaultName();
 })();

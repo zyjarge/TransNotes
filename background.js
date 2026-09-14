@@ -225,6 +225,7 @@ async function runPipeline(task) {
           baseUrl: options.translateBaseUrl,
           apiKey: options.translateApiKey,
           model: options.translateModel,
+          disableThinking: options.disableThinking,
         });
         needTranslate.forEach((cue, i) => {
           cue.zh = results[i];
@@ -559,6 +560,7 @@ async function handleGenDraft(msg) {
       baseUrl: options.translateBaseUrl,
       apiKey: options.translateApiKey,
       model: options.translateModel,
+      disableThinking: options.disableThinking,
     };
     const md = await VdcNotes.generateDraft(msg.videoKey, ai, {
       forceOverview: !!msg.forceOverview,
@@ -597,6 +599,7 @@ async function handleGenOverview(msg) {
       baseUrl: options.translateBaseUrl,
       apiKey: options.translateApiKey,
       model: options.translateModel,
+      disableThinking: options.disableThinking,
     }, !!msg.force, options.overviewLevel);
     return { ok: true, overview };
   } catch (e) {
@@ -629,6 +632,7 @@ async function handleTranslateSubs(msg) {
           baseUrl: options.translateBaseUrl,
           apiKey: options.translateApiKey,
           model: options.translateModel,
+          disableThinking: options.disableThinking,
         });
         need.forEach((c, i) => {
           c.zh = results[i];
@@ -655,6 +659,7 @@ async function handleGenAutoNote(msg) {
       baseUrl: options.translateBaseUrl,
       apiKey: options.translateApiKey,
       model: options.translateModel,
+      disableThinking: options.disableThinking,
     }, { template: msg.template, force: !!msg.force });
     return { ok: true, note };
   } catch (e) {

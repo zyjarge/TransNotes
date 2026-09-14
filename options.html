@@ -39,6 +39,10 @@
     button.primary:hover { background: #1a6fd8; }
     #save-status { margin-left: 12px; font-size: 13px; color: #0a7d33; }
     #save-status.error { color: #c00; }
+    .vault-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px;
+                 background: #fff; cursor: pointer; }
+    .vault-btn:hover { background: #f2f2f2; }
+    #vault-name { margin-left: 8px; }
   </style>
 </head>
 <body>
@@ -78,8 +82,18 @@
     <label for="translateModel">模型</label>
     <input type="text" id="translateModel" placeholder="deepseek-chat">
   </div>
+  <div class="field checks">
+    <label><input type="checkbox" id="disableThinking"> 关闭思考/推理模式(think 链)</label>
+    <div class="hint">适用于 MiniMax M2.5+/M3 等支持 thinking 参数的模型(请求带 thinking: {type:"disabled"}),可显著降低 token 消耗与延迟;老版 MiniMax M2 不支持关闭。其他服务商(如 DeepSeek 非推理模型)不受影响。</div>
+  </div>
 
   <h2>笔记</h2>
+  <div class="field">
+    <label>Obsidian vault 文件夹(默认导出位置)</label>
+    <button type="button" id="pick-vault" class="vault-btn">选择文件夹</button>
+    <span id="vault-name" class="hint"></span>
+    <div class="hint">授权后草稿直接写入该文件夹,截图存 attachments/ 子目录;不设置则导出时下载到「下载目录/video-notes/」。侧边栏导出页可临时切换到其他文件夹。</div>
+  </div>
   <div class="field">
     <label for="overviewLevel">摘要粒度(AI 概览)</label>
     <select id="overviewLevel">
@@ -92,10 +106,10 @@
   <div class="field">
     <label for="noteTemplate">默认笔记模板(自动笔记)</label>
     <select id="noteTemplate">
-      <option value="cornell">康奈尔笔记:要点 + 线索/自测问题 + 总结</option>
-      <option value="outline">大纲笔记:层级大纲,结构最稳</option>
-      <option value="feynman">费曼讲解:大白话讲清概念 + 自测清单</option>
-      <option value="zettelkasten">卡片盒笔记:原子概念卡片 + 关联</option>
+      <option value="cornell">康奈尔笔记 — 要点 + 自测问题 + 总结,适合系统学习与复习</option>
+      <option value="outline">大纲笔记 — 层级大纲梳理内容结构,适合快速把握全貌</option>
+      <option value="feynman">费曼讲解 — 大白话讲透每个概念,适合入门陌生领域</option>
+      <option value="zettelkasten">卡片盒笔记 — 原子概念卡片 + 关联,适合长期知识积累</option>
     </select>
     <div class="hint">长期偏好;侧边栏「笔记」页签里可按视频临时换模板重新生成。</div>
   </div>
@@ -113,6 +127,7 @@
   <button class="primary" id="save">保存</button>
   <span id="save-status"></span>
 
+  <script src="lib/exporter.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
