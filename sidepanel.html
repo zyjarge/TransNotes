@@ -67,9 +67,30 @@
     .note .ts:hover { text-decoration: underline; }
     .note .del { float: right; border: none; background: none; color: #bbb; padding: 0 4px; font-size: 14px; }
     .note .del:hover { color: #c00; }
+    .note .edit-btn { float: right; padding: 1px 10px; font-size: 12px; margin-right: 4px; }
+    .note .edit-btn:hover { border-color: #3ea6ff; color: #3ea6ff; }
     .note .quote { color: #777; font-size: 12px; margin: 4px 0; }
     .note .comment { white-space: pre-wrap; word-break: break-word; }
-    .note img { max-width: 100%; border-radius: 4px; margin-top: 4px; }
+    .note img { max-width: 100%; border-radius: 4px; margin-top: 4px; cursor: zoom-in; }
+    .note .shot-actions { margin-top: 4px; display: flex; gap: 6px; }
+    .note .shot-actions button { padding: 2px 10px; font-size: 12px; }
+    .note .edit-area { width: 100%; min-height: 48px; resize: vertical; border: 1px solid #ddd;
+                       border-radius: 4px; padding: 6px 8px; font: 13px/1.5 inherit; margin-top: 4px; }
+    .note .edit-bar { margin-top: 4px; display: flex; gap: 6px; }
+    .note .edit-bar button { padding: 2px 10px; font-size: 12px; }
+
+    /* 笔记页内部垂直子标签(自动笔记 / 我的笔记) */
+    .notes-layout { display: flex; gap: 10px; align-items: flex-start; }
+    .notes-tabs { display: flex; flex-direction: column; gap: 2px; flex: none;
+                  border-right: 1px solid #e5e5e5; padding-right: 6px; }
+    .notes-tabs button { border: none; background: none; padding: 6px 10px; font-size: 13px;
+                         cursor: pointer; color: #666; border-right: 2px solid transparent;
+                         border-radius: 0; text-align: left; white-space: nowrap; }
+    .notes-tabs button.on { color: #3ea6ff; border-right-color: #3ea6ff; font-weight: 600; }
+    .notes-tabs button:hover { color: #222; background: none; }
+    .notes-panes { flex: 1; min-width: 0; }
+    .notes-pane { display: none; }
+    .notes-pane.on { display: block; }
 
     /* 草稿视图 */
     #draft { width: 100%; min-height: 320px; resize: vertical; font: 12px/1.5 ui-monospace, monospace;
@@ -105,15 +126,24 @@
   </section>
 
   <section id="tab-notes">
-    <h2>自动笔记</h2>
-    <div class="row">
-      <select id="anote-tpl" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px"></select>
-      <button id="gen-anote" class="primary">生成笔记</button>
+    <div class="notes-layout">
+      <div class="notes-tabs">
+        <button data-ntab="anote" class="on">自动笔记</button>
+        <button data-ntab="mine">我的笔记</button>
+      </div>
+      <div class="notes-panes">
+        <div class="notes-pane on" id="ntab-anote">
+          <div class="row">
+            <select id="anote-tpl" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px"></select>
+            <button id="gen-anote" class="primary">生成笔记</button>
+          </div>
+          <div id="anote"></div>
+        </div>
+        <div class="notes-pane" id="ntab-mine">
+          <div id="notes"></div>
+        </div>
+      </div>
     </div>
-    <div id="anote"></div>
-
-    <h2>我的笔记</h2>
-    <div id="notes"></div>
   </section>
 
   <section id="tab-draft">
@@ -128,6 +158,7 @@
   <script src="lib/cache.js"></script>
   <script src="lib/notes.js"></script>
   <script src="lib/exporter.js"></script>
+  <script src="lib/shotedit.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

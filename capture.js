@@ -51,6 +51,9 @@
    */
   window.addEventListener('keydown', (e) => {
     if (!host || e.target !== host) return;
+    // 截图预览/标记模态开着时按键交给 DubShotEdit 自己处理(它后注册,
+    // 会就地拦截页面快捷键;这里放行,避免 Esc/Ctrl+Enter 误触浮层关闭/保存)
+    if (globalThis.DubShotEdit && DubShotEdit.isOpen()) return;
     e.stopImmediatePropagation();
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -148,7 +151,10 @@
       'border-radius:6px;color:#fff;padding:8px 10px;font:inherit;outline:none}',
       'textarea:focus{border-color:#3ea6ff}',
       '.thumb{display:none;margin-top:8px;max-height:120px;border-radius:6px;',
-      'border:1px solid rgba(255,255,255,.2)}',
+      'border:1px solid rgba(255,255,255,.2);cursor:zoom-in}',
+      '.shotbar{display:none;gap:8px;margin-top:6px}',
+      '.shotbar button{background:rgba(255,255,255,.12);color:#fff;padding:4px 12px;font-size:12px}',
+      '.shotbar button:hover{background:rgba(255,255,255,.2)}',
       '.foot{display:flex;align-items:center;gap:10px;margin-top:12px}',
       'button{cursor:pointer;border:none;border-radius:6px;padding:6px 14px;font-size:13px}',
       '.shot{background:rgba(255,255,255,.12);color:#fff}',
@@ -163,7 +169,12 @@
       '<span><span class="ts"></span><button class="x" type="button" title="关闭(Esc)">×</button></span></div>',
       '<blockquote class="quote" style="display:none"><span class="zh"></span><span class="en"></span></blockquote>',
       '<textarea placeholder="此刻的想法…"></textarea>',
-      '<img class="thumb" alt="截图预览">',
+      '<img class="thumb" alt="截图预览(点击放大)">',
+      '<div class="shotbar">',
+      '<button class="view" type="button">预览</button>',
+      '<button class="annot" type="button">标记</button>',
+      '<button class="delshot" type="button">删除</button>',
+      '</div>',
       '<div class="foot">',
       '<button class="shot" type="button">插入截图</button>',
       '<span class="err"></span>',
@@ -186,6 +197,10 @@
     root.querySelector('.save').addEventListener('click', save);
     root.querySelector('.shot').addEventListener('click', () => takeShot(root));
     root.querySelector('.x').addEventListener('click', () => close(true));
+    root.querySelector('.thumb').addEventListener('click', () => viewShot(root));
+    root.querySelector('.view').addEventListener('click', () => viewShot(root));
+    root.querySelector('.annot').addEventListener('click', () => annotateShot(root));
+    root.querySelector('.delshot').addEventListener('click', () => removeShot(root));
     textarea.focus();
   }
 
@@ -255,6 +270,7 @@
         const thumb = root.querySelector('.thumb');
         thumb.src = dataUrl;
         thumb.style.display = 'block';
+        root.querySelector('.shotbar').style.display = 'flex';
         btn.textContent = '重新截图';
       } catch (e) {
         err.textContent = '截图保存失败:' + ((e && e.message) || e);
@@ -264,6 +280,52 @@
       err.textContent = '截图失败:' + ((resp && resp.error) || '未知错误');
       err.style.display = 'inline';
     }
+  }
+
+  /** 预览当前截图(灯箱,点空白或 Esc 关闭) */
+  function viewShot(root) {
+    const thumb = root.querySelector('.thumb');
+    if (!thumb.src || !globalThis.DubShotEdit) return;
+    DubShotEdit.view({ dataUrl: thumb.src, container: host });
+  }
+
+  /**
+   * 标记当前截图(画笔/矩形/箭头/文字)。完成后覆盖写回同一 shot id,
+   * 笔记、草稿与 Obsidian 导出按 id 取图,自动拿到标记后的版本。
+   */
+  function annotateShot(root) {
+    const thumb = root.querySelector('.thumb');
+    if (!thumb.src || !session || !session.shotId || !globalThis.DubShotEdit) return;
+    const shotId = session.shotId; // 编辑器打开期间 session 可能已被保存/关闭重置
+    DubShotEdit.edit({
+      dataUrl: thumb.src,
+      container: host,
+      onSave: async (newDataUrl) => {
+        try {
+          await VdcCache.saveShot(shotId, newDataUrl);
+          thumb.src = newDataUrl;
+        } catch (e) {
+          const err = root.querySelector('.err');
+          err.textContent = '标记保存失败:' + ((e && e.message) || e);
+          err.style.display = 'inline';
+        }
+      },
+    });
+  }
+
+  /** 删除已插入的截图:笔记尚未保存,清掉会话引用与已写入存储的截图数据 */
+  async function removeShot(root) {
+    if (!session || !session.shotId) return;
+    const id = session.shotId;
+    session.shotId = null;
+    try {
+      await VdcCache.removeShot(id);
+    } catch (e) { /* 清理失败无碍主流程 */ }
+    const thumb = root.querySelector('.thumb');
+    thumb.removeAttribute('src');
+    thumb.style.display = 'none';
+    root.querySelector('.shotbar').style.display = 'none';
+    root.querySelector('.shot').textContent = '插入截图';
   }
 
   /** 保存笔记并关闭;内容与截图都为空时等同取消 */

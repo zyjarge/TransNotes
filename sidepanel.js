@@ -71,6 +71,17 @@
     });
   });
 
+  /* 笔记页内部子标签(自动笔记 / 我的笔记,垂直排列在左侧) */
+  document.querySelectorAll('.notes-tabs button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.notes-tabs button')
+        .forEach((b) => b.classList.toggle('on', b === btn));
+      document.querySelectorAll('.notes-pane').forEach((p) => {
+        p.classList.toggle('on', p.id === 'ntab-' + btn.dataset.ntab);
+      });
+    });
+  });
+
   /* ---------------- 字幕视图 ---------------- */
 
   document.querySelectorAll('.modes button').forEach((btn) => {
@@ -366,6 +377,127 @@
 
   /* ---------------- 笔记视图 ---------------- */
 
+  /**
+   * 渲染一条笔记。两种状态:
+   * - 只读(默认):时间戳 + 「编辑」按钮 + 删除笔记 ×;截图仅可点击预览
+   * - 编辑态:想法变为输入框(保存/取消),截图下方提供 标记/删除截图
+   */
+  function renderNote(div, n, editing) {
+    div.innerHTML = '';
+    div.className = 'note';
+
+    const head = document.createElement('div');
+    head.className = 'note-head';
+    const ts = document.createElement('span');
+    ts.className = 'ts';
+    ts.textContent = VdcNotes.fmtTime(n.ts);
+    ts.title = '跳回视频对应位置';
+    ts.addEventListener('click', () => seekTo(n.ts));
+    const del = document.createElement('button');
+    del.className = 'del';
+    del.textContent = '×';
+    del.title = '删除这条笔记';
+    del.addEventListener('click', async () => {
+      await VdcCache.deleteNote(currentKey, n.id);
+      renderNotes();
+    });
+    head.appendChild(ts);
+    head.appendChild(del);
+    if (!editing) {
+      const edit = document.createElement('button');
+      edit.className = 'edit-btn';
+      edit.textContent = '编辑';
+      edit.title = '编辑这条笔记(文本 / 截图)';
+      edit.addEventListener('click', () => renderNote(div, n, true));
+      head.appendChild(edit);
+    }
+    div.appendChild(head);
+
+    const quote = n.zh || n.text;
+    if (quote) {
+      const q = document.createElement('div');
+      q.className = 'quote';
+      q.textContent = quote;
+      div.appendChild(q);
+    }
+
+    if (editing) {
+      const ta = document.createElement('textarea');
+      ta.className = 'edit-area';
+      ta.value = n.comment || '';
+      ta.placeholder = '此刻的想法…';
+      div.appendChild(ta);
+      const bar = document.createElement('div');
+      bar.className = 'edit-bar';
+      const ok = document.createElement('button');
+      ok.textContent = '保存';
+      ok.addEventListener('click', async () => {
+        await VdcCache.updateNote(currentKey, n.id, { comment: ta.value.trim() });
+        renderNotes();
+      });
+      const no = document.createElement('button');
+      no.textContent = '取消';
+      no.addEventListener('click', () => renderNote(div, n, false));
+      bar.appendChild(ok);
+      bar.appendChild(no);
+      div.appendChild(bar);
+      ta.focus();
+    } else if (n.comment) {
+      const c = document.createElement('div');
+      c.className = 'comment';
+      c.textContent = n.comment;
+      div.appendChild(c);
+    }
+
+    if (n.shot) {
+      const img = document.createElement('img');
+      img.alt = '截图(点击放大预览)';
+      img.title = '点击放大预览';
+      VdcCache.getShot(n.shot).then((dataUrl) => {
+        if (dataUrl) img.src = dataUrl;
+      });
+      img.addEventListener('click', () => {
+        if (img.src && globalThis.DubShotEdit) DubShotEdit.view({ dataUrl: img.src });
+      });
+      div.appendChild(img);
+      if (editing) {
+        const bar = document.createElement('div');
+        bar.className = 'shot-actions';
+        // 标记:编辑器完成后覆盖写回同一 shot id,草稿/导出按 id 取图自动生效
+        const annot = document.createElement('button');
+        annot.textContent = '标记';
+        annot.title = '在截图上添加画笔/矩形/箭头/文字标记';
+        annot.addEventListener('click', async () => {
+          if (!globalThis.DubShotEdit) return;
+          const dataUrl = await VdcCache.getShot(n.shot);
+          if (!dataUrl) { setStatus('截图数据缺失,无法标记', true); return; }
+          DubShotEdit.edit({
+            dataUrl,
+            onSave: async (newDataUrl) => {
+              await VdcCache.saveShot(n.shot, newDataUrl);
+              img.src = newDataUrl;
+              setStatus('截图标记已保存');
+            },
+          });
+        });
+        bar.appendChild(annot);
+        // 删除截图:笔记保留,清掉 shot 引用与截图数据
+        const delShot = document.createElement('button');
+        delShot.textContent = '删除截图';
+        delShot.title = '从这条笔记中移除截图';
+        delShot.addEventListener('click', async () => {
+          if (!confirm('删除这张截图?(笔记本身保留)')) return;
+          const sid = n.shot;
+          await VdcCache.updateNote(currentKey, n.id, { shot: null });
+          try { await VdcCache.removeShot(sid); } catch (e) { /* 无碍 */ }
+          renderNotes();
+        });
+        bar.appendChild(delShot);
+        div.appendChild(bar);
+      }
+    }
+  }
+
   async function renderNotes() {
     const wrap = $('notes');
     wrap.innerHTML = '';
@@ -376,45 +508,7 @@
     }
     for (const n of notes) {
       const div = document.createElement('div');
-      div.className = 'note';
-      const head = document.createElement('div');
-      const ts = document.createElement('span');
-      ts.className = 'ts';
-      ts.textContent = VdcNotes.fmtTime(n.ts);
-      ts.title = '跳回视频对应位置';
-      ts.addEventListener('click', () => seekTo(n.ts));
-      const del = document.createElement('button');
-      del.className = 'del';
-      del.textContent = '×';
-      del.title = '删除这条笔记';
-      del.addEventListener('click', async () => {
-        await VdcCache.deleteNote(currentKey, n.id);
-        renderNotes();
-      });
-      head.appendChild(ts);
-      head.appendChild(del);
-      div.appendChild(head);
-      const quote = n.zh || n.text;
-      if (quote) {
-        const q = document.createElement('div');
-        q.className = 'quote';
-        q.textContent = quote;
-        div.appendChild(q);
-      }
-      if (n.comment) {
-        const c = document.createElement('div');
-        c.className = 'comment';
-        c.textContent = n.comment;
-        div.appendChild(c);
-      }
-      if (n.shot) {
-        const img = document.createElement('img');
-        img.alt = '截图';
-        VdcCache.getShot(n.shot).then((dataUrl) => {
-          if (dataUrl) img.src = dataUrl;
-        });
-        div.appendChild(img);
-      }
+      renderNote(div, n, false);
       wrap.appendChild(div);
     }
   }

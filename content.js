@@ -342,12 +342,38 @@
     if (capturedUrl) {
       try {
         const zhJson = await fetchTranslatedCaptions(capturedUrl, 'zh-Hans');
-        return { cues: parseToCues(zhJson), skipTranslate: true, route: 'YouTube 自动翻译' };
+        const zhCues = parseToCues(zhJson);
+        // 机翻直通时把英文原文对齐进 cues(text=en, zh=机翻中文),
+        // 否则双语/原文视图只剩中文可显示
+        try {
+          attachOriginal(zhCues, parseToCues(json));
+        } catch (e) {
+          console.warn('[transnotes] 英文原文对齐失败,双语视图将只显示中文:', (e && e.message) || e);
+        }
+        return { cues: zhCues, skipTranslate: true, route: 'YouTube 自动翻译' };
       } catch (e) {
         console.warn('[transnotes] 自动翻译字幕不可用,回退英文 + DeepSeek:', (e && e.message) || e);
       }
     }
     return { cues: parseToCues(json), skipTranslate: false, route: '英文 + DeepSeek' };
+  }
+
+  /**
+   * 把英文原文按时间重叠对齐进机翻中文 cues:z.text 从中文改为对应的英文原文,
+   * 中文挪入 z.zh。两轨时间轴一致,但语义重组的分句边界可能不同(中英文标点差异),
+   * 因此对每条中文句拼接与其时间区间重叠的所有英文句,保证对照完整
+   */
+  function attachOriginal(zhCues, enCues) {
+    for (const z of zhCues) {
+      const parts = [];
+      for (const e of enCues) {
+        if (e.end <= z.start) continue;
+        if (e.start >= z.end) break; // enCues 按 start 升序,之后不会再有重叠
+        parts.push(e.text);
+      }
+      z.zh = z.text;
+      z.text = parts.join(' ') || z.zh; // 对齐不到时退回中文(不出现空原文)
+    }
   }
 
   /** timedtext JSON → 语义重组后的完整句子序列;内容为空时抛错 */
@@ -546,7 +572,7 @@
       route: sub.route,
       startIndex,
       skipTranslate: sub.skipTranslate, // 中文字幕轨/自动翻译通道:跳过 DeepSeek 直通 TTS
-      cues: cues.map((c) => ({ index: c.index, start: c.start, end: c.end, text: c.text })),
+      cues: cues.map((c) => ({ index: c.index, start: c.start, end: c.end, text: c.text, zh: c.zh })),
     });
     if (!resp || !resp.ok) {
       video.muted = false;
@@ -882,7 +908,7 @@
           route: sub.route,
         }, sub.cues.map((c) => {
           const item = { index: c.index, start: c.start, end: c.end, text: c.text };
-          if (sub.skipTranslate) item.zh = c.text; // 中文轨/自动翻译通道:原文即中文
+          if (sub.skipTranslate) item.zh = c.zh || c.text; // 中文轨直通原文即中文;自动翻译通道 zh 为机翻中文
           return item;
         }));
         return {

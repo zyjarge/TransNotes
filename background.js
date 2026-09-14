@@ -155,7 +155,7 @@ async function handleStart(msg, sender) {
   console.log('[transnotes] 任务启动:', msg.videoId, '共', msg.cues.length, '句');
 
   // 字幕写入共享缓存(笔记/双语视图复用,不重复调 AI);
-  // skipTranslate 通道字幕本身即中文,zh 直接置为原文
+  // skipTranslate 通道字幕本身即中文(B 站/中文轨),或 zh 已带机翻中文(YouTube 自动翻译)
   VdcCache.saveSubtitles(task.videoKey, {
     site: msg.site || '',
     videoId: msg.videoId,
@@ -164,7 +164,7 @@ async function handleStart(msg, sender) {
     route: msg.route || '',
   }, msg.cues.map((c) => {
     const item = { index: c.index, start: c.start, end: c.end, text: c.text };
-    if (task.skipTranslate) item.zh = c.text;
+    if (task.skipTranslate) item.zh = c.zh || c.text;
     return item;
   })).catch((e) => console.warn('[transnotes] 字幕缓存写入失败:', e));
 

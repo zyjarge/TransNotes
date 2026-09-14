@@ -41,6 +41,7 @@
         "lib/syncplayer.js",
         "lib/dubcommon.js",
         "lib/cache.js",
+        "lib/shotedit.js",
         "capture.js",
         "content.js"
       ],
@@ -54,6 +55,7 @@
         "lib/syncplayer.js",
         "lib/dubcommon.js",
         "lib/cache.js",
+        "lib/shotedit.js",
         "capture.js",
         "bilibili.js"
       ],
