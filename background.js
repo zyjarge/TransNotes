@@ -66,6 +66,33 @@ function chunkKey(videoId, chunk, options) {
     `${chunk[0].index}-${chunk[chunk.length - 1].index}`;
 }
 
+/** 中文 TTS 语速估计:1.0 倍速下每秒字数(MiniMax 实测约 4~5 字/秒,取保守值) */
+const ZH_CHARS_PER_SEC = 4.2;
+/** 预测式提速上限:相对设置语速最多再提 30%(生成式提速比播放端变速自然) */
+const TTS_PREDICT_SPEED_CAP = 1.3;
+
+/**
+ * 预测式 TTS 调速:句子的字幕时间窗与字数在合成前都已知,
+ * 预测音频时长明显超窗(>10%)时,直接提高本次合成的 speed,
+ * 让音频"生出来就是短的"——播放端的双向调速余量留给迟到等意外,
+ * 从源头减少吞句尾。返回实际使用的语速(已含用户设置的基准语速)
+ */
+function predictChunkSpeed(chunk, options) {
+  const base = typeof options.speed === 'number' && options.speed > 0 ? options.speed : 1.0;
+  let chars = 0;
+  let window = 0;
+  for (const c of chunk) {
+    chars += String(c.zh || '').replace(/\s+/g, '').length;
+    window += Math.max((c.end || 0) - (c.start || 0), 0);
+  }
+  if (!chars || !window) return base;
+  const predicted = chars / (ZH_CHARS_PER_SEC * base);
+  const ratio = predicted / window;
+  if (ratio <= 1.1) return base; // 10% 以内交给播放端微调(人耳无感区)
+  const needed = base * ratio * 1.05; // 5% 余量,防估计偏差
+  return Math.min(Math.round(needed * 100) / 100, base * TTS_PREDICT_SPEED_CAP);
+}
+
 /** 从缓存取翻译文本(内存 → storage) */
 async function getTranslation(videoId, index) {
   const key = transKey(videoId, index);
@@ -328,7 +355,8 @@ async function advanceSynthesis(task, list) {
       continue;
     }
     // 逐句缓存命中(旧版本缓存):直接推送
-    const cached = await getAudioBase64(audioKey(videoId, cue.index, options));
+    const singleOpts = Object.assign({}, options, { speed: predictChunkSpeed([cue], options) });
+    const cached = await getAudioBase64(audioKey(videoId, cue.index, singleOpts));
     if (cached) {
       sendCueAudio(task, cue, cached);
       i++;
@@ -340,7 +368,8 @@ async function advanceSynthesis(task, list) {
     while (j < list.length) {
       const c = list[j];
       if (c.audioSent || !c.zh) break;
-      if (await getAudioBase64(audioKey(videoId, c.index, options))) break;
+      const cOpts = Object.assign({}, options, { speed: predictChunkSpeed([c], options) });
+      if (await getAudioBase64(audioKey(videoId, c.index, cOpts))) break;
       group.push(c);
       j++;
     }
@@ -392,14 +421,16 @@ function sendCueAudio(task, cue, base64) {
 /** 逐句合成并推送(兼容路径/回退路径) */
 async function synthesizeSingle(task, cue) {
   const { videoId, options } = task;
-  const aKey = audioKey(videoId, cue.index, options);
+  // 预测式调速:预计明显超窗的句子,合成时就提速(缓存键带实际语速)
+  const effOptions = Object.assign({}, options, { speed: predictChunkSpeed([cue], options) });
+  const aKey = audioKey(videoId, cue.index, effOptions);
   let base64 = await getAudioBase64(aKey);
   if (!base64) {
     const blob = await ttsQueue.enqueue(cue.zh, {
       apiKey: options.minimaxApiKey,
       groupId: options.minimaxGroupId,
       voiceId: options.voiceId,
-      speed: options.speed,
+      speed: effOptions.speed,
       model: options.ttsModel,
     });
     base64 = await blobToBase64(blob);
@@ -414,7 +445,10 @@ async function synthesizeSingle(task, cue) {
  */
 async function synthesizeChunkAndPush(task, chunk) {
   const { videoId, options } = task;
-  const cKey = chunkKey(videoId, chunk, options);
+  // 预测式调速:块内句子时间窗与字数都已知,预测音频明显超窗时合成即提速,
+  // 让音频"生出来就是短的",把播放端双向调速余量留给迟到等意外(减少吞句尾)
+  const effOptions = Object.assign({}, options, { speed: predictChunkSpeed(chunk, options) });
+  const cKey = chunkKey(videoId, chunk, effOptions);
 
   // 块缓存命中:直接重放推送
   const cachedRaw = await getAudioBase64(cKey);
@@ -432,7 +466,7 @@ async function synthesizeChunkAndPush(task, chunk) {
       apiKey: options.minimaxApiKey,
       groupId: options.minimaxGroupId,
       voiceId: options.voiceId,
-      speed: options.speed,
+      speed: effOptions.speed,
       model: options.ttsModel,
     });
     const segments = alignSegments(chunk, subtitles, granularity);
