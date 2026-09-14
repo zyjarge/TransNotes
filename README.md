@@ -1,3 +1,5 @@
+<p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
+
 # TransNotes — 视频中文配音 + 学习笔记
 
 一个 Chrome 扩展(MV3),把 YouTube / B 站视频变成可听、可记、可归档的学习资源:

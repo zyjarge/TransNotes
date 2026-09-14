@@ -98,6 +98,17 @@
     setTimeout(() => { el.textContent = ''; }, 2000);
   }
 
+  /* 左侧菜单切换 */
+  document.querySelectorAll('.menu button[data-sec]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.menu button[data-sec]')
+        .forEach((b) => b.classList.toggle('on', b === btn));
+      document.querySelectorAll('.content section').forEach((s) => {
+        s.classList.toggle('on', s.id === 'sec-' + btn.dataset.sec);
+      });
+    });
+  });
+
   $('save').addEventListener('click', () => {
     save().catch((e) => {
       showStatus(e.message || '保存失败');

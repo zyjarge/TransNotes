@@ -4,30 +4,79 @@
   <meta charset="UTF-8">
   <title>TransNotes - 设置</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-      max-width: 560px;
-      margin: 24px auto;
-      padding: 0 16px;
+      margin: 0;
       color: #1f1f1f;
+      background: #fafafa;
     }
-    h1 { font-size: 18px; }
-    h2 { font-size: 14px; margin-top: 24px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
-    .field { margin: 12px 0; }
+    .layout { display: flex; min-height: 100vh; }
+
+    /* 左侧菜单 */
+    .menu {
+      flex: none;
+      width: 200px;
+      padding: 20px 12px;
+      background: #fff;
+      border-right: 1px solid #eee;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .menu .brand { display: flex; align-items: center; gap: 8px; padding: 0 10px 16px; }
+    .menu .brand img { width: 30px; height: 30px; border-radius: 7px; }
+    .menu .brand span { font-size: 15px; font-weight: 700; }
+    .menu button {
+      border: none;
+      background: none;
+      text-align: left;
+      padding: 9px 12px;
+      font-size: 14px;
+      color: #555;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .menu button:hover { background: #f5f5f5; color: #222; }
+    .menu button.on { background: #eef6ff; color: #3ea6ff; font-weight: 600; }
+    .menu .menu-hint { margin-top: auto; padding: 0 10px; font-size: 11px; color: #bbb; line-height: 1.5; }
+
+    /* 右侧内容 */
+    .content { flex: 1; max-width: 640px; padding: 24px 32px 60px; }
+    section { display: none; }
+    section.on { display: block; }
+    h2 { font-size: 16px; margin: 0 0 4px; }
+    .sec-desc { font-size: 12px; color: #888; margin-bottom: 16px; }
+    .field { margin: 14px 0; }
     label { display: block; font-size: 13px; margin-bottom: 4px; }
     input, select {
       width: 100%;
-      box-sizing: border-box;
       padding: 8px 10px;
       border: 1px solid #ccc;
       border-radius: 6px;
       font-size: 14px;
+      background: #fff;
     }
     .hint { font-size: 12px; color: #888; margin-top: 4px; }
     .checks label { display: block; font-size: 13px; margin: 6px 0; }
     .checks input[type="checkbox"] { width: auto; margin-right: 6px; }
+    .vault-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px;
+                 background: #fff; cursor: pointer; }
+    .vault-btn:hover { background: #f2f2f2; }
+    #vault-name { margin-left: 8px; }
+
+    /* 保存栏:吸底,切菜单时始终可见 */
+    .save-bar {
+      position: sticky;
+      bottom: 0;
+      margin-top: 24px;
+      padding: 12px 0;
+      background: linear-gradient(transparent, #fafafa 30%);
+    }
     button.primary {
-      margin-top: 20px;
       padding: 10px 28px;
       background: #065fd4;
       color: #fff;
@@ -39,93 +88,110 @@
     button.primary:hover { background: #1a6fd8; }
     #save-status { margin-left: 12px; font-size: 13px; color: #0a7d33; }
     #save-status.error { color: #c00; }
-    .vault-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px;
-                 background: #fff; cursor: pointer; }
-    .vault-btn:hover { background: #f2f2f2; }
-    #vault-name { margin-left: 8px; }
   </style>
 </head>
 <body>
-  <h1>TransNotes - 设置</h1>
+  <div class="layout">
+    <aside class="menu">
+      <div class="brand"><img src="icons/icon48.png" alt=""><span>TransNotes</span></div>
+      <button data-sec="tts" class="on">语音合成 (TTS)</button>
+      <button data-sec="llm">文本模型</button>
+      <button data-sec="notes">笔记与导出</button>
+      <div class="menu-hint">API Key 仅存本机 chrome.storage.local,不上传任何服务器</div>
+    </aside>
 
-  <h2>MiniMax TTS(语音合成)</h2>
-  <div class="field">
-    <label for="minimaxApiKey">MiniMax API Key</label>
-    <input type="password" id="minimaxApiKey" placeholder="sk-...">
-    <div class="hint">必填。在 platform.minimaxi.com 控制台获取。仅供本机使用,切勿分发。</div>
-  </div>
-  <div class="field">
-    <label for="minimaxGroupId">Group ID(可选)</label>
-    <input type="text" id="minimaxGroupId" placeholder="旧版账号可填,新版无需填写">
-    <div class="hint">新版接口仅用 API Key 认证,旧版账号如有需要可填写。</div>
-  </div>
-  <div class="field">
-    <label for="voiceId">音色</label>
-    <select id="voiceId"></select>
-  </div>
-  <div class="field">
-    <label for="speed">语速(0.5 ~ 2.0)</label>
-    <input type="number" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
-  </div>
+    <main class="content">
+      <section id="sec-tts" class="on">
+        <h2>语音合成 (TTS)</h2>
+        <div class="sec-desc">MiniMax 语音合成,用于「中文配音」。不配置只影响配音功能,笔记/翻译/导出照常可用。</div>
+        <div class="field">
+          <label for="minimaxApiKey">MiniMax API Key</label>
+          <input type="password" id="minimaxApiKey" placeholder="sk-...">
+          <div class="hint">在 platform.minimaxi.com 控制台获取。仅供本机使用,切勿分发。</div>
+        </div>
+        <div class="field">
+          <label for="minimaxGroupId">Group ID(可选)</label>
+          <input type="text" id="minimaxGroupId" placeholder="旧版账号可填,新版无需填写">
+          <div class="hint">新版接口仅用 API Key 认证,旧版账号如有需要可填写。</div>
+        </div>
+        <div class="field">
+          <label for="voiceId">音色</label>
+          <select id="voiceId"></select>
+        </div>
+        <div class="field">
+          <label for="speed">语速(0.5 ~ 2.0)</label>
+          <input type="number" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
+        </div>
+      </section>
 
-  <h2>翻译 API(OpenAI 兼容)</h2>
-  <div class="field">
-    <label for="translateBaseUrl">接口地址 Base URL</label>
-    <input type="text" id="translateBaseUrl" placeholder="https://api.deepseek.com">
-    <div class="hint">默认 DeepSeek,可填任意 OpenAI 兼容服务的地址。AI 概览与翻译共用此配置。</div>
-  </div>
-  <div class="field">
-    <label for="translateApiKey">API Key</label>
-    <input type="password" id="translateApiKey" placeholder="sk-...">
-  </div>
-  <div class="field">
-    <label for="translateModel">模型</label>
-    <input type="text" id="translateModel" placeholder="deepseek-chat">
-  </div>
-  <div class="field checks">
-    <label><input type="checkbox" id="disableThinking"> 关闭思考/推理模式(think 链)</label>
-    <div class="hint">适用于 MiniMax M2.5+/M3 等支持 thinking 参数的模型(请求带 thinking: {type:"disabled"}),可显著降低 token 消耗与延迟;老版 MiniMax M2 不支持关闭。其他服务商(如 DeepSeek 非推理模型)不受影响。</div>
-  </div>
+      <section id="sec-llm">
+        <h2>文本模型</h2>
+        <div class="sec-desc">字幕翻译、AI 概览、自动笔记共用的 OpenAI 兼容服务,默认 DeepSeek。</div>
+        <div class="field">
+          <label for="translateBaseUrl">接口地址 Base URL</label>
+          <input type="text" id="translateBaseUrl" placeholder="https://api.deepseek.com">
+          <div class="hint">默认 DeepSeek,可填任意 OpenAI 兼容服务的地址。</div>
+        </div>
+        <div class="field">
+          <label for="translateApiKey">API Key</label>
+          <input type="password" id="translateApiKey" placeholder="sk-...">
+        </div>
+        <div class="field">
+          <label for="translateModel">模型</label>
+          <input type="text" id="translateModel" placeholder="deepseek-chat">
+        </div>
+        <div class="field checks">
+          <label><input type="checkbox" id="disableThinking"> 关闭思考/推理模式(think 链)</label>
+          <div class="hint">适用于 MiniMax M2.5+/M3 等支持 thinking 参数的模型(请求带 thinking: {type:"disabled"}),可显著降低 token 消耗与延迟;老版 MiniMax M2 不支持关闭。其他服务商(如 DeepSeek 非推理模型)不受影响。</div>
+        </div>
+      </section>
 
-  <h2>笔记</h2>
-  <div class="field">
-    <label>Obsidian vault 文件夹(默认导出位置)</label>
-    <button type="button" id="pick-vault" class="vault-btn">选择文件夹</button>
-    <span id="vault-name" class="hint"></span>
-    <div class="hint">授权后草稿直接写入该文件夹,截图存 attachments/ 子目录;不设置则导出时下载到「下载目录/video-notes/」。侧边栏导出页可临时切换到其他文件夹。</div>
-  </div>
-  <div class="field">
-    <label for="overviewLevel">摘要粒度(AI 概览)</label>
-    <select id="overviewLevel">
-      <option value="concise">简洁:少量章节 + 3 条关键引述</option>
-      <option value="normal">普通:适中章节 + 3-5 条关键引述</option>
-      <option value="detailed">详细:细分章节 + 5-8 条关键引述</option>
-    </select>
-    <div class="hint">修改后已生成的概览会在下次生成时按新粒度重建。</div>
-  </div>
-  <div class="field">
-    <label for="noteTemplate">默认笔记模板(自动笔记)</label>
-    <select id="noteTemplate">
-      <option value="cornell">康奈尔笔记 — 要点 + 自测问题 + 总结,适合系统学习与复习</option>
-      <option value="outline">大纲笔记 — 层级大纲梳理内容结构,适合快速把握全貌</option>
-      <option value="feynman">费曼讲解 — 大白话讲透每个概念,适合入门陌生领域</option>
-      <option value="zettelkasten">卡片盒笔记 — 原子概念卡片 + 关联,适合长期知识积累</option>
-    </select>
-    <div class="hint">长期偏好;侧边栏「笔记」页签里可按视频临时换模板重新生成。</div>
-  </div>
-  <div class="field">
-    <label>导出笔记包含内容</label>
-    <div class="checks">
-      <label><input type="checkbox" id="expMeta" checked> 视频元信息(标题、链接、日期等 frontmatter)</label>
-      <label><input type="checkbox" id="expOverview" checked> 摘要信息(AI 概览:章节 + 关键引述)</label>
-      <label><input type="checkbox" id="expNotes" checked> 笔记内容(我的时间戳笔记)</label>
-      <label><input type="checkbox" id="expAutoNote" checked> 自动笔记(按默认笔记模板,需已在「笔记」页生成)</label>
-      <label><input type="checkbox" id="expSubs" checked> 字幕(双语字幕全文)</label>
-    </div>
-  </div>
+      <section id="sec-notes">
+        <h2>笔记与导出</h2>
+        <div class="sec-desc">笔记生成与 Obsidian 导出相关配置。</div>
+        <div class="field">
+          <label>Obsidian vault 文件夹(默认导出位置)</label>
+          <button type="button" id="pick-vault" class="vault-btn">选择文件夹</button>
+          <span id="vault-name" class="hint"></span>
+          <div class="hint">授权后草稿直接写入该文件夹,截图存 attachments/ 子目录;不设置则导出时下载到「下载目录/video-notes/」。侧边栏导出页可临时切换到其他文件夹。</div>
+        </div>
+        <div class="field">
+          <label for="overviewLevel">摘要粒度(AI 概览)</label>
+          <select id="overviewLevel">
+            <option value="concise">简洁:少量章节 + 3 条关键引述</option>
+            <option value="normal">普通:适中章节 + 3-5 条关键引述</option>
+            <option value="detailed">详细:细分章节 + 5-8 条关键引述</option>
+          </select>
+          <div class="hint">修改后已生成的概览会在下次生成时按新粒度重建。</div>
+        </div>
+        <div class="field">
+          <label for="noteTemplate">默认笔记模板(自动笔记)</label>
+          <select id="noteTemplate">
+            <option value="cornell">康奈尔笔记 — 要点 + 自测问题 + 总结,适合系统学习与复习</option>
+            <option value="outline">大纲笔记 — 层级大纲梳理内容结构,适合快速把握全貌</option>
+            <option value="feynman">费曼讲解 — 大白话讲透每个概念,适合入门陌生领域</option>
+            <option value="zettelkasten">卡片盒笔记 — 原子概念卡片 + 关联,适合长期知识积累</option>
+          </select>
+          <div class="hint">长期偏好;侧边栏「笔记」页签里可按视频临时换模板重新生成。</div>
+        </div>
+        <div class="field">
+          <label>导出笔记包含内容</label>
+          <div class="checks">
+            <label><input type="checkbox" id="expMeta" checked> 视频元信息(标题、链接、日期等 frontmatter)</label>
+            <label><input type="checkbox" id="expOverview" checked> 摘要信息(AI 概览:章节 + 关键引述)</label>
+            <label><input type="checkbox" id="expNotes" checked> 笔记内容(我的时间戳笔记)</label>
+            <label><input type="checkbox" id="expAutoNote" checked> 自动笔记(按默认笔记模板,需已在「笔记」页生成)</label>
+            <label><input type="checkbox" id="expSubs" checked> 字幕(双语字幕全文)</label>
+          </div>
+        </div>
+      </section>
 
-  <button class="primary" id="save">保存</button>
-  <span id="save-status"></span>
+      <div class="save-bar">
+        <button class="primary" id="save">保存</button>
+        <span id="save-status"></span>
+      </div>
+    </main>
+  </div>
 
   <script src="lib/exporter.js"></script>
   <script src="options.js"></script>
