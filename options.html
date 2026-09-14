@@ -144,6 +144,10 @@
           <label><input type="checkbox" id="disableThinking"> 关闭思考/推理模式(think 链)</label>
           <div class="hint">适用于 MiniMax M2.5+/M3 等支持 thinking 参数的模型(请求带 thinking: {type:"disabled"}),可显著降低 token 消耗与延迟;老版 MiniMax M2 不支持关闭。其他服务商(如 DeepSeek 非推理模型)不受影响。</div>
         </div>
+        <div class="field checks">
+          <label><input type="checkbox" id="polishSubtitles"> 字幕口语化润色(实验)</label>
+          <div class="hint">开启后,TTS 前的中文字幕会经文本模型润色为自然口语(减少翻译腔/AI 味);英文通道合并进翻译调用,中文直通通道(YouTube 机翻/B 站 ai-zh)单独润色。略微增加耗时与 token 消耗,润色结果与纯翻译分开缓存。</div>
+        </div>
       </section>
 
       <section id="sec-notes">

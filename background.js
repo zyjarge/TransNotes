@@ -79,6 +79,24 @@ async function setTranslation(videoId, index, text) {
   await chrome.storage.local.set({ [key]: text });
 }
 
+/** 润色缓存 key:与纯翻译缓存隔离(润色开关切换时各自命中,互不污染) */
+function polishKey(videoId, index) {
+  return `trans:v2:pl:${videoId}:${index}:zh`;
+}
+
+/** 从缓存取润色文本 */
+async function getPolish(videoId, index) {
+  const key = polishKey(videoId, index);
+  const stored = await chrome.storage.local.get(key);
+  return stored[key] || null;
+}
+
+/** 写润色缓存 */
+async function setPolish(videoId, index, text) {
+  const key = polishKey(videoId, index);
+  await chrome.storage.local.set({ [key]: text });
+}
+
 /** 从缓存取音频 base64(内存 → storage,带容量管理) */
 async function getAudioBase64(key) {
   if (memAudioCache.has(key)) return memAudioCache.get(key);
@@ -203,15 +221,20 @@ async function runPipeline(task) {
     const slice = ordered.slice(from, from + batchSize);
     from += batchSize;
 
+    // 润色开关(实验):英文通道把润色合并进翻译调用,读写独立的润色缓存
+    const polish = !!options.polishSubtitles;
+
     // 翻译本批(先查缓存);skipTranslate 模式(B 站中文字幕)直接使用原文
     if (task.skipTranslate) {
       for (const cue of slice) {
         if (!cue.zh) cue.zh = cue.text;
       }
     } else {
+      const getCached = polish ? getPolish : getTranslation;
+      const setCached = polish ? setPolish : setTranslation;
       const needTranslate = [];
       for (const cue of slice) {
-        const cached = await getTranslation(videoId, cue.index);
+        const cached = await getCached(videoId, cue.index);
         if (cached) {
           cue.zh = cached;
         } else {
@@ -226,16 +249,46 @@ async function runPipeline(task) {
           apiKey: options.translateApiKey,
           model: options.translateModel,
           disableThinking: options.disableThinking,
+          polish,
         });
         needTranslate.forEach((cue, i) => {
           cue.zh = results[i];
-          setTranslation(videoId, cue.index, results[i]).catch(() => {});
+          setCached(videoId, cue.index, results[i]).catch(() => {});
         });
       }
     }
 
-    // 本批译文回填共享缓存(笔记/双语视图直接读取;skipTranslate 通道已在启动时写入)
-    if (!task.skipTranslate) {
+    // 中文直通通道(中文轨/tlang 机翻)的单独润色:字幕已是中文,再过一遍口语化改写。
+    // 需要文本模型配置;未配置或润色失败时静默回退为未润色文本,不阻塞配音
+    if (task.skipTranslate && polish && options.translateApiKey) {
+      try {
+        const needPolish = [];
+        for (const cue of slice) {
+          const cached = await getPolish(videoId, cue.index);
+          if (cached) cue.zh = cached;
+          else needPolish.push(cue);
+        }
+        if (needPolish.length > 0) {
+          const results = await Translate.polishBatch(needPolish.map((c) => c.zh), {
+            baseUrl: options.translateBaseUrl,
+            apiKey: options.translateApiKey,
+            model: options.translateModel,
+            disableThinking: options.disableThinking,
+          });
+          needPolish.forEach((cue, i) => {
+            cue.zh = results[i];
+            setPolish(videoId, cue.index, results[i]).catch(() => {});
+          });
+        }
+      } catch (e) {
+        console.warn('[transnotes] 字幕润色失败,本批使用未润色文本:', (e && e.message) || e);
+      }
+    }
+
+    // 本批译文回填共享缓存(笔记/双语视图直接读取;skipTranslate 通道已在启动时写入,
+    // 但润色改变了 zh,需要重新回填)
+    const polished = task.skipTranslate && polish && options.translateApiKey;
+    if (!task.skipTranslate || polished) {
       const zhUpdates = {};
       for (const cue of slice) {
         if (cue.zh) zhUpdates[cue.index] = cue.zh;
@@ -618,12 +671,16 @@ async function handleTranslateSubs(msg) {
     if (!doc || !doc.cues || !doc.cues.length) return { ok: false, error: '无字幕缓存' };
     const options = await getOptions();
     const vid = doc.videoId || msg.videoKey; // trans:v2 缓存键用的原始 videoId
+    // 润色开关(实验):读写独立的润色缓存,翻译+润色合并为一次调用
+    const polish = !!options.polishSubtitles;
+    const getCached = polish ? getPolish : getTranslation;
+    const setCached = polish ? setPolish : setTranslation;
     const pending = doc.cues.filter((c) => !c.zh);
     for (let from = 0; from < pending.length; from += TRANSLATE_BATCH) {
       const slice = pending.slice(from, from + TRANSLATE_BATCH);
       const need = [];
       for (const c of slice) {
-        const cached = await getTranslation(vid, c.index);
+        const cached = await getCached(vid, c.index);
         if (cached) c.zh = cached;
         else need.push(c);
       }
@@ -633,10 +690,11 @@ async function handleTranslateSubs(msg) {
           apiKey: options.translateApiKey,
           model: options.translateModel,
           disableThinking: options.disableThinking,
+          polish,
         });
         need.forEach((c, i) => {
           c.zh = results[i];
-          setTranslation(vid, c.index, results[i]).catch(() => {});
+          setCached(vid, c.index, results[i]).catch(() => {});
         });
       }
       const updates = {};

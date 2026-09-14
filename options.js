@@ -14,6 +14,7 @@
     translateApiKey: '',
     translateModel: 'deepseek-chat',
     disableThinking: false,
+    polishSubtitles: false,
     overviewLevel: 'normal',
     noteTemplate: 'cornell',
     exportSections: { meta: true, overview: true, notes: true, autoNote: true, subtitles: true },
@@ -29,6 +30,7 @@
     { id: 'Chinese (Mandarin)_Male_Announcer', name: '播报男声' },
     { id: 'Chinese (Mandarin)_Lyrical_Voice', name: '抒情男声' },
     { id: 'Chinese (Mandarin)_Radio_Host', name: '电台男主播' },
+    { id: 'wangziru_latest', name: '王自如(克隆音色·实验)' },
   ];
 
   function $(id) {
@@ -57,6 +59,7 @@
     $('translateApiKey').value = merged.translateApiKey || '';
     $('translateModel').value = merged.translateModel || DEFAULT_OPTIONS.translateModel;
     $('disableThinking').checked = !!merged.disableThinking;
+    $('polishSubtitles').checked = !!merged.polishSubtitles;
     $('overviewLevel').value = merged.overviewLevel || DEFAULT_OPTIONS.overviewLevel;
     $('noteTemplate').value = merged.noteTemplate || DEFAULT_OPTIONS.noteTemplate;
     const es = Object.assign({}, DEFAULT_OPTIONS.exportSections, merged.exportSections || {});
@@ -77,6 +80,7 @@
       translateApiKey: $('translateApiKey').value.trim(),
       translateModel: $('translateModel').value.trim(),
       disableThinking: $('disableThinking').checked,
+      polishSubtitles: $('polishSubtitles').checked,
       overviewLevel: $('overviewLevel').value,
       noteTemplate: $('noteTemplate').value,
       exportSections: {
