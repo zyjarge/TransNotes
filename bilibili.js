@@ -15,14 +15,14 @@
 (function () {
   'use strict';
 
-  console.log('[ytb-tts] bilibili content script loaded');
+  console.log('[transnotes] bilibili content script loaded');
 
-  const BTN_CLASS = 'ytb-tts-player-btn'; // 与 YouTube 端同名(两站脚本不会同时加载)
-  const CAP_BTN_CLASS = 'ytb-tts-capture-btn'; // 「记录想法」按钮
-  const STATUS_ID = 'ytb-tts-status';
-  const STYLE_ID = 'ytb-tts-style';
-  const LOADING_ID = 'ytb-tts-loading';
-  const HIDE_SUB_ID = 'ytb-tts-hide-sub'; // 配音期间隐藏 B 站原生字幕的 style 元素
+  const BTN_CLASS = 'transnotes-player-btn'; // 与 YouTube 端同名(两站脚本不会同时加载)
+  const CAP_BTN_CLASS = 'transnotes-capture-btn'; // 「记录想法」按钮
+  const STATUS_ID = 'transnotes-status';
+  const STYLE_ID = 'transnotes-style';
+  const LOADING_ID = 'transnotes-loading';
+  const HIDE_SUB_ID = 'transnotes-hide-sub'; // 配音期间隐藏 B 站原生字幕的 style 元素
   const INITIAL_BUFFER_CUES = 3;          // 开播前至少就绪的句数(首批缓冲)
   const LOADING_WATCHDOG_MS = 60000;      // 首批缓冲看门狗:超时兜底开播
 
@@ -46,35 +46,35 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = [
-      '.ytb-tts-player-btn{display:flex;align-items:center;justify-content:center;',
+      '.transnotes-player-btn{display:flex;align-items:center;justify-content:center;',
       'width:34px;height:34px;cursor:pointer;border:none;background:transparent}',
-      '.ytb-tts-player-btn img{width:20px;height:20px;border-radius:3px;opacity:.9;pointer-events:none}',
-      '.ytb-tts-player-btn:hover img{opacity:1}',
-      '.ytb-tts-player-btn.ytb-tts-active img{opacity:1;filter:drop-shadow(0 0 3px #00a1d6)}',
+      '.transnotes-player-btn img{width:20px;height:20px;border-radius:3px;opacity:.9;pointer-events:none}',
+      '.transnotes-player-btn:hover img{opacity:1}',
+      '.transnotes-player-btn.transnotes-active img{opacity:1;filter:drop-shadow(0 0 3px #00a1d6)}',
       // 控制栏缺失时的兜底:播放器右上角圆形浮动按钮
-      '.ytb-tts-player-btn.ytb-tts-float-btn{position:absolute;top:56px;right:12px;',
+      '.transnotes-player-btn.transnotes-float-btn{position:absolute;top:56px;right:12px;',
       'z-index:60;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55)}',
-      '.ytb-tts-player-btn.ytb-tts-float-btn:hover{background:rgba(0,0,0,.75)}',
-      '.ytb-tts-player-btn.ytb-tts-float-btn img{width:22px;height:22px}',
+      '.transnotes-player-btn.transnotes-float-btn:hover{background:rgba(0,0,0,.75)}',
+      '.transnotes-player-btn.transnotes-float-btn img{width:22px;height:22px}',
       // 「记录想法」按钮:与配音按钮同风格(浮动位置在配音按钮下方)
-      '.ytb-tts-capture-btn{display:flex;align-items:center;justify-content:center;',
+      '.transnotes-capture-btn{display:flex;align-items:center;justify-content:center;',
       'width:34px;height:34px;cursor:pointer;border:none;background:transparent}',
-      '.ytb-tts-capture-btn svg{width:18px;height:18px;opacity:.9;pointer-events:none;fill:#fff}',
-      '.ytb-tts-capture-btn:hover svg{opacity:1}',
-      '.ytb-tts-capture-btn.ytb-tts-float-btn{position:absolute;top:104px;right:12px;',
+      '.transnotes-capture-btn svg{width:18px;height:18px;opacity:.9;pointer-events:none;fill:#fff}',
+      '.transnotes-capture-btn:hover svg{opacity:1}',
+      '.transnotes-capture-btn.transnotes-float-btn{position:absolute;top:104px;right:12px;',
       'z-index:60;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55)}',
-      '.ytb-tts-capture-btn.ytb-tts-float-btn:hover{background:rgba(0,0,0,.75)}',
-      '#ytb-tts-status{position:absolute;top:12px;left:12px;z-index:60;padding:4px 10px;',
+      '.transnotes-capture-btn.transnotes-float-btn:hover{background:rgba(0,0,0,.75)}',
+      '#transnotes-status{position:absolute;top:12px;left:12px;z-index:60;padding:4px 10px;',
       'border-radius:4px;background:rgba(0,0,0,.7);color:#fff;font-size:13px;',
       'pointer-events:none;display:none}',
       // 加载浮层:暂停期间的视觉提示;层级低于按钮(60),保证加载中按钮可点取消
-      '#ytb-tts-loading{position:absolute;inset:0;z-index:59;display:none;',
+      '#transnotes-loading{position:absolute;inset:0;z-index:59;display:none;',
       'flex-direction:column;align-items:center;justify-content:center;gap:14px;',
       'background:rgba(0,0,0,.35);pointer-events:none}',
-      '.ytb-tts-spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.25);',
-      'border-top-color:#fff;border-radius:50%;animation:ytb-tts-spin .8s linear infinite}',
-      '@keyframes ytb-tts-spin{to{transform:rotate(360deg)}}',
-      '.ytb-tts-loading-text{color:#fff;font-size:14px;padding:4px 12px;',
+      '.transnotes-spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.25);',
+      'border-top-color:#fff;border-radius:50%;animation:transnotes-spin .8s linear infinite}',
+      '@keyframes transnotes-spin{to{transform:rotate(360deg)}}',
+      '.transnotes-loading-text{color:#fff;font-size:14px;padding:4px 12px;',
       'border-radius:4px;background:rgba(0,0,0,.6)}',
     ].join('\n');
     root.appendChild(style);
@@ -116,10 +116,10 @@
       el = document.createElement('div');
       el.id = LOADING_ID;
       el.innerHTML =
-        '<div class="ytb-tts-spinner"></div><div class="ytb-tts-loading-text"></div>';
+        '<div class="transnotes-spinner"></div><div class="transnotes-loading-text"></div>';
     }
     if (!mountInPlayer(el)) return;
-    el.querySelector('.ytb-tts-loading-text').textContent = text || '';
+    el.querySelector('.transnotes-loading-text').textContent = text || '';
     el.style.display = 'flex';
   }
 
@@ -141,10 +141,10 @@
     if (existing) {
       // 控制栏重建后按钮可能丢失或挂错位置,搬家修正
       if (controlsUsable) {
-        existing.classList.remove('ytb-tts-float-btn');
+        existing.classList.remove('transnotes-float-btn');
         if (existing.parentNode !== controlsUsable) controlsUsable.insertBefore(existing, controlsUsable.firstChild);
       } else {
-        existing.classList.add('ytb-tts-float-btn');
+        existing.classList.add('transnotes-float-btn');
         mountInPlayer(existing);
       }
       return ensureStatus();
@@ -164,7 +164,7 @@
       controlsUsable.insertBefore(btn, controlsUsable.firstChild);
       return ensureStatus();
     }
-    btn.classList.add('ytb-tts-float-btn');
+    btn.classList.add('transnotes-float-btn');
     if (!mountInPlayer(btn)) return false;
     return ensureStatus();
   }
@@ -182,10 +182,10 @@
     const existing = document.querySelector('.' + CAP_BTN_CLASS);
     if (existing) {
       if (controlsUsable) {
-        existing.classList.remove('ytb-tts-float-btn');
+        existing.classList.remove('transnotes-float-btn');
         if (existing.parentNode !== controlsUsable) controlsUsable.insertBefore(existing, controlsUsable.firstChild);
       } else {
-        existing.classList.add('ytb-tts-float-btn');
+        existing.classList.add('transnotes-float-btn');
         mountInPlayer(existing);
       }
       return true;
@@ -205,7 +205,7 @@
       controlsUsable.insertBefore(btn, controlsUsable.firstChild);
       return true;
     }
-    btn.classList.add('ytb-tts-float-btn');
+    btn.classList.add('transnotes-float-btn');
     return mountInPlayer(btn);
   }
 
@@ -222,7 +222,7 @@
     const btn = document.querySelector('.' + BTN_CLASS);
     if (btn) {
       const active = next === 'active';
-      btn.classList.toggle('ytb-tts-active', active);
+      btn.classList.toggle('transnotes-active', active);
       btn.title = (active || next === 'loading') ? '停止配音' : '中文配音';
       btn.setAttribute('aria-label', btn.title);
     }
@@ -366,7 +366,7 @@
   /* ---------------- 主流程:开始 / 停止 ---------------- */
 
   async function onToggleClick() {
-    console.log('[ytb-tts] 配音按钮被点击(B站), 当前状态:', state);
+    console.log('[transnotes] 配音按钮被点击(B站), 当前状态:', state);
     if (!DubCommon.isContextValid()) {
       setState('error');
       setStatus('扩展已更新,请刷新页面后重试', '#c00');
@@ -380,7 +380,7 @@
     try {
       await startDubbing();
     } catch (e) {
-      console.error('[ytb-tts] 启动配音失败:', e);
+      console.error('[transnotes] 启动配音失败:', e);
       clearTimeout(loadingWatchdog);
       loadingWatchdog = null;
       hideLoadingOverlay();
@@ -408,7 +408,7 @@
     const dubVideoId = vk ? vk.key : null;
     cues = await fetchSubtitles();
     // 打印首句便于核对字幕与视频是否对应(B 站风控曾返回过其他视频的字幕)
-    console.log('[ytb-tts] 字幕首句:', cues[0] && cues[0].text, '| 共', cues.length, '句');
+    console.log('[transnotes] 字幕首句:', cues[0] && cues[0].text, '| 共', cues.length, '句');
 
     // 抓字幕期间可能切换了分 P / 视频
     const vkAfter = getVideoKey();
@@ -475,7 +475,7 @@
     clearTimeout(loadingWatchdog);
     loadingWatchdog = setTimeout(() => {
       if (state === 'loading') {
-        console.warn('[ytb-tts] 首批缓冲超时,兜底开播(后续句走单句缓冲)');
+        console.warn('[transnotes] 首批缓冲超时,兜底开播(后续句走单句缓冲)');
         beginPlayback();
       }
     }, LOADING_WATCHDOG_MS);
@@ -569,17 +569,17 @@
           const url = URL.createObjectURL(blob);
           cueAudioCache.set(msg.index, { url, duration: 0 });
           probeDuration(msg.index, url);
-          console.log('[ytb-tts] 收到音频:', msg.index, '(已缓存', cueAudioCache.size, '句)');
+          console.log('[transnotes] 收到音频:', msg.index, '(已缓存', cueAudioCache.size, '句)');
           if (state === 'loading') checkInitialBuffer();
         } catch (e) {
-          console.error('[ytb-tts] 音频解码失败:', e);
+          console.error('[transnotes] 音频解码失败:', e);
         }
         break;
       }
       case 'DUB_CHUNK_READY': {
         // 合并块:整段音频 + 每句时间区间,切分回逐句 WAV 后入缓存
         if (msg.videoId !== activeVideoId) return;
-        chunkHandler(msg).catch((e) => console.error('[ytb-tts] 合并音频切分失败:', e));
+        chunkHandler(msg).catch((e) => console.error('[transnotes] 合并音频切分失败:', e));
         break;
       }
       case 'DUB_ALL_READY': {

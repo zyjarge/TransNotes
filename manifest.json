@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "YouTube 中文配音",
+  "name": "TransNotes 视频配音与笔记",
   "version": "0.1.0",
   "description": "YouTube/B 站视频实时中文配音 + 观看中捕捉时间戳笔记,自动生成笔记草稿并可导出到 Obsidian",
   "permissions": [

@@ -16,11 +16,11 @@
 (function () {
   'use strict';
 
-  const SOURCE = 'ytb-tts-injected';            // 本脚本 → Content Script
-  const MSG_PLAYER_RESPONSE = 'ytb-tts-player-response';
-  const MSG_TIMEDTEXT = 'ytb-tts-timedtext';    // 捕获到的字幕响应
-  const CMD_SOURCE = 'ytb-tts-content';         // Content Script → 本脚本
-  const MSG_CMD = 'ytb-tts-cmd';
+  const SOURCE = 'transnotes-injected';            // 本脚本 → Content Script
+  const MSG_PLAYER_RESPONSE = 'transnotes-player-response';
+  const MSG_TIMEDTEXT = 'transnotes-timedtext';    // 捕获到的字幕响应
+  const CMD_SOURCE = 'transnotes-content';         // Content Script → 本脚本
+  const MSG_CMD = 'transnotes-cmd';
 
   /* ---------------- ytInitialPlayerResponse 回传 ---------------- */
 

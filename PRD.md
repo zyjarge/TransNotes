@@ -46,7 +46,7 @@ YouTube 页面
 
 ### 建议文件结构
 ```
-youtube-zh-dubbing/
+仓库根目录(扁平结构)
 ├── manifest.json          # MV3 清单
 ├── background.js          # Service Worker:翻译 + TTS 调度 + 缓存队列
 ├── content.js             # 页面注入:UI 按钮、字幕抓取、同步播放引擎

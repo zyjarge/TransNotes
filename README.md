@@ -1,4 +1,4 @@
-# ytb-tts — 视频中文配音 + 学习笔记
+# TransNotes — 视频中文配音 + 学习笔记
 
 一个 Chrome 扩展(MV3),把 YouTube / B 站视频变成可听、可记、可归档的学习资源:
 
@@ -9,6 +9,12 @@
 
 **本地优先**:API Key、字幕缓存、笔记、截图全部存在本机 Chrome 存储,无任何开发者服务器与遥测。字幕译文共享缓存——配音翻译过的内容,笔记和双语视图直接复用,不重复调用 AI。
 
+**技术思路**:不下载视频/音频流,只抓取字幕轨道(带时间戳文本)→ 按句尾标点**语义重组为完整句子**(修复字幕按显示节奏断句导致的"半句话"割裂感)→ 中文文本 → 逐句 TTS 合成 → 按时间戳同步播放。整条链路全部在浏览器内实时完成。
+
+**支持站点**:
+- **YouTube**(含 Shorts):字幕三级通道 —— 原生中文字幕轨(直通 TTS)> 英文轨 + `tlang` 自动翻译(直通,谷歌机翻)> 英文轨 + DeepSeek 翻译(质量兜底)
+- **B 站**(需登录):ai-zh 中文 AI 字幕 → 直通配音(无需翻译,字幕时间轴与原语音天然对齐);B 站原生英文字幕视频暂不支持
+
 ## 安装
 
 本扩展不上架 Chrome Web Store,通过「加载已解压的扩展程序」本地安装。
@@ -17,13 +23,13 @@
 
 把下面这段话发给你的 coding agent(如 Kimi Code / Claude Code):
 
-> 把 https://github.com/zyjarge/ytb-tts 克隆到一个我指定的固定目录,告诉我完整路径,并用同一个目录完成 Chrome 的「加载已解压的扩展程序」安装(扩展目录是仓库里的 `youtube-zh-dubbing/`)。如果我没有目录偏好,macOS 上建议 `~/Documents/ytb-tts`。然后引导我在扩展设置页填入 API Key。
+> 把 https://github.com/zyjarge/TransNotes 克隆到一个我指定的固定目录,告诉我完整路径,并用同一个目录完成 Chrome 的「加载已解压的扩展程序」安装(扩展目录就是仓库根目录)。如果我没有目录偏好,macOS 上建议 `~/Documents/TransNotes`。然后引导我在扩展设置页填入 API Key。
 
 ### 手动安装
 
 1. 克隆或下载本仓库( Code → Download ZIP 后解压),放在一个**固定位置**——安装后不要移动或删除该目录,否则扩展会失效,需重新加载
 2. 打开 `chrome://extensions`,开启右上角「开发者模式」
-3. 点击「加载已解压的扩展程序」,选择仓库内的 **`youtube-zh-dubbing/`** 目录
+3. 点击「加载已解压的扩展程序」,选择**仓库根目录**
 4. 点工具栏扩展图标旁的菜单 →「选项」打开设置页,填入 API Key(见下;**只用笔记功能的话,填翻译 API 即可,TTS 可不填**)
 5. 更新代码后,在 `chrome://extensions` 点扩展卡片上的「重载」,并**刷新已打开的视频页**(页面里的旧脚本不会自动更新)
 
@@ -31,19 +37,26 @@
 
 在扩展设置页填写,Key 只存本机 `chrome.storage.local`,**切勿把 Key 贴进聊天记录、源码或截图**:
 
-- **MiniMax TTS(配音用,选填)**:[platform.minimaxi.com](https://platform.minimaxi.com/user-center/basic-information/interface-key) 创建 API Key;可选音色与语速。**不配置只影响「中文配音」功能**——字幕抓取、翻译、AI 概览、笔记与 Obsidian 导出均不受影响,可只当学习笔记工具用
+- **MiniMax TTS(配音用,选填)**:[platform.minimaxi.com](https://platform.minimaxi.com/user-center/basic-information/interface-key) 创建 API Key;可选音色与语速(默认:青涩青年音色,语速 1.0);Group ID 仅旧版账号需要才填。**不配置只影响「中文配音」功能**——字幕抓取、翻译、AI 概览、笔记与 Obsidian 导出均不受影响,可只当学习笔记工具用
 - **翻译 / AI 概览(笔记功能,必填)**:默认 DeepSeek([platform.deepseek.com](https://platform.deepseek.com/) 创建 Key),可换成任意 OpenAI 兼容服务的 Base URL / Key / 模型
 - **笔记选项**:摘要粒度(简洁/普通/详细)、导出笔记包含内容(元信息/摘要/笔记/字幕)
-
-详细配置说明见 [youtube-zh-dubbing/README.md](youtube-zh-dubbing/README.md)。
 
 ## 使用
 
 1. 打开带字幕的 YouTube 视频(含 Shorts)或 B 站视频(需登录,需 ai-zh 中文字幕)
-2. **配音**:点播放器控制栏的「中文配音」按钮,或按 `Ctrl+Shift+D`;首批语音缓冲就绪后自动开播,原声静音
-3. **记笔记**:观看中按 `Ctrl/Cmd+Shift+S` 或点「记录想法」按钮 → 浮层自动带入时间戳与当前字幕,输入想法,`Ctrl+Enter` 保存续播
+2. **配音**:点播放器控制栏的「中文配音」按钮(YouTube 普通视频在控制栏右侧;Shorts 在播放器右上角圆形浮动按钮;B 站在控制栏右下区),或按 `Ctrl+Shift+D`;点击后视频先暂停并显示加载浮层,首批语音缓冲(起始句起连续 3 句)就绪后自动续播,原声静音;缓冲期间再次点击可取消
+3. **记笔记**:观看中按 `Ctrl/Cmd+Shift+S` 或点「记录想法」按钮 → 视频暂停并弹出浮层,自动带入时间戳与当前字幕(浮层内按键已与页面快捷键隔离),可插入截图(自动裁剪到视频画面),`Ctrl+Enter` 保存续播,`Esc` 取消
 4. **看笔记**:点工具栏扩展图标打开侧边栏——自动抓取字幕、自动翻译、自动生成概览;字幕随配音逐句高亮,点时间戳跳回视频
 5. **归档**:视频结束/切走时会提示是否生成草稿;在侧边栏「笔记导出」页签编辑后点「导出到 Obsidian」,首次授权 vault 文件夹,之后一键写入
+
+支持:暂停 / 拖动进度条 / 倍速播放(自动重新对齐);无字幕视频会给出明确提示。配音期间原声保持静音(调音量会被自动恢复静音,想听原声请点「停止配音」)。
+
+### 快捷键
+
+| 快捷键 | 功能 |
+| --- | --- |
+| `Ctrl+Shift+S`(macOS `Cmd+Shift+S`) | 捕捉想法(记笔记) |
+| `Ctrl+Shift+D`(macOS 同为 Ctrl+Shift+D) | 开关中文配音 |
 
 ## 核心机制
 
@@ -58,26 +71,57 @@
 
 ```
 ├── PRD.md                 # 产品需求文档(MVP 范围、技术架构、验收标准)
-└── youtube-zh-dubbing/    # Chrome 扩展(MV3)
-    ├── manifest.json
-    ├── background.js      # Service Worker:流式翻译 + TTS 合并调度 + 笔记/概览/截图消息 + 持久缓存
-    ├── content.js         # YouTube Content Script:播放器按钮、字幕抓取、捕捉入口、进度广播
-    ├── injected.js        # YouTube 主世界脚本:hook 播放器带 pot 的字幕请求
-    ├── bilibili.js        # B 站 Content Script:字幕 API(wbi 签名)、ai-zh 直通、分 P 巡检
-    ├── capture.js         # 捕捉浮层(两站共用):键盘隔离、截图裁剪;草稿生成提示条
-    ├── sidepanel.html/js  # 笔记侧边栏:字幕/概览/笔记/笔记导出四页签
-    ├── options.html/js    # 设置页(API Key、音色语速、摘要粒度、导出内容)
-    └── lib/
-        ├── subtitles.js   # YouTube timedtext JSON3 解析、片段合并、轨道选择
-        ├── translate.js   # OpenAI 兼容翻译封装(分块、按行对应)
-        ├── minimax_tts.js # MiniMax TTS 封装(hex 解码、限流自适应队列、多句合并+句级字幕)
-        ├── syncplayer.js  # 时间戳对齐播放引擎(双向调速/尾部对齐/缓冲等待,两站共用)
-        ├── cache.js       # 共享缓存层:字幕译文/笔记/截图
-        ├── notes.js       # 笔记整合:AI 概览(粒度可配)+ Markdown 草稿组装
-        ├── exporter.js    # Obsidian 导出:File System Access 直写 vault,退化为下载
-        ├── dubcommon.js   # 站点无关公共件(base64/WAV 编码、合并块切分、安全消息)
-        └── wbi.js         # B 站 wbi 签名(内置 MD5)
+├── manifest.json          # MV3 清单(权限最小化)
+├── background.js          # Service Worker:流式翻译 + TTS 合并调度 + 笔记/概览/截图消息 + 持久缓存
+├── content.js             # YouTube Content Script:播放器按钮、字幕抓取、捕捉入口、进度广播
+├── injected.js            # YouTube 主世界脚本:读取 ytInitialPlayerResponse、hook 带 pot 的字幕请求
+├── bilibili.js            # B 站 Content Script:字幕 API(wbi 签名)、ai-zh 直通、分 P 巡检
+├── capture.js             # 捕捉浮层(两站共用):键盘隔离、截图裁剪;草稿生成提示条
+├── sidepanel.html/js      # 笔记侧边栏:字幕/概览/笔记/笔记导出四页签
+├── options.html/js        # 设置页(API Key、音色语速、摘要粒度、导出内容)
+├── icons/                 # 插件图标
+└── lib/
+    ├── subtitles.js       # YouTube timedtext JSON3 解析、片段合并、轨道选择
+    ├── translate.js       # OpenAI 兼容翻译封装(分块、按行对应)
+    ├── minimax_tts.js     # MiniMax TTS 封装(hex 解码、限流自适应队列、多句合并+句级字幕)
+    ├── syncplayer.js      # 时间戳对齐播放引擎(双向调速/尾部对齐/缓冲等待,两站共用)
+    ├── cache.js           # 共享缓存层:字幕译文/笔记/截图
+    ├── notes.js           # 笔记整合:AI 概览(粒度可配)+ Markdown 草稿组装
+    ├── exporter.js        # Obsidian 导出:File System Access 直写 vault,退化为下载
+    ├── dubcommon.js       # 站点无关公共件(base64/WAV 编码、合并块切分、安全消息)
+    └── wbi.js             # B 站 wbi 签名(内置 MD5)
 ```
+
+## 已知限制
+
+- **字幕要求**:YouTube 端需要视频有中文或英文(人工或自动)字幕——有中文轨或自动翻译可用时跳过 DeepSeek 直通 TTS(谷歌机翻质量,速度更快、零翻译成本),不可用时回退英文 + DeepSeek(质量更高);B 站端需要视频有 ai-zh 中文 AI 字幕(登录可见)
+- **B 站字幕需登录**:B 站对未登录用户隐藏字幕轨道(接口返回 need_login_subtitle),插件会提示先登录;字幕质量为 B 站 AI 机翻水平,不如 DeepSeek 重翻译
+- **字幕借道播放器请求获取**:YouTube 对 timedtext 接口强制 pot(PO Token)校验,直接用字幕 URL 请求会返回空内容。插件通过主世界钩子捕获播放器自己的字幕请求——点击按钮瞬间会短暂开启再恢复 CC 字幕,配音期间原字幕窗口被 CSS 隐藏
+- **背景音被完全静音**:MVP 不保留/分离背景音
+- **单说话人**:不区分说话人,统一使用所选音色
+- **合成吞吐通过多句合并解决**:MiniMax 限流按请求次数(免费约 10 次/分钟、充值约 20 次/分钟)、计费按字符,插件把连续 5 句合并成一次 TTS 请求(开句级字幕,按时间戳在页面侧切回逐句),吞吐提升约 5 倍而成本不变;合并失败自动回退逐句合成。限流触发时队列自动降速退避。翻译与音频(含合并块)均有持久缓存,中断后重开或二次观看成本很低
+- **仅供个人本地使用**:API Key 保存在本机 `chrome.storage.local`,切勿打包分发含 key 的插件
+
+## API 成本估算
+
+| 项 | 单价参考 | 一个 10 分钟视频(~150 句) |
+|---|---|---|
+| MiniMax TTS | 约 ¥0.002/千字符(以官方计费为准) | 约 ¥0.01~0.03 |
+| 翻译(DeepSeek) | 输入 ¥0.5/百万 tokens、输出 ¥2/百万 tokens | 约 ¥0.01 以内 |
+
+总成本极低(每次观看约几分钱量级),主要瓶颈是限流而非费用。以官方控制台计费为准。
+
+## 自测说明
+
+- 测试视频:任意 10 分钟以上、带英文字幕的 YouTube 演讲/课程视频(如 TED 官方频道)
+- 验证场景:
+  1. 点击按钮后视频立即暂停并显示加载浮层(转圈+进度),首批 3 句缓冲就绪后自动续播开口,原声静音
+  2. 暂停 → 恢复、拖动进度条 → 2 秒内重新对齐
+  3. 倍速 1.5x / 2x 下配音跟随(用户调速后插件不再干预视频速率)
+  4. 加载期间再次点击按钮可取消加载并恢复原声续播;播放中缓冲同样显示加载浮层
+  5. 无字幕视频提示「该视频无可用英文字幕」且不报错
+  6. 连续播放 10 分钟无漏播/重复/乱序(控制台无未捕获异常)
+  7. 同一视频第二次点击:命中缓存,几乎立即开口
 
 ## 合规说明
 

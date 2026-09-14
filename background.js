@@ -21,7 +21,13 @@ importScripts('lib/cache.js', 'lib/notes.js', 'lib/translate.js', 'lib/minimax_t
 // 点击扩展图标即打开侧边栏(笔记面板)
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((e) => console.warn('[ytb-tts] sidePanel 设置失败:', e));
+  .catch((e) => console.warn('[transnotes] sidePanel 设置失败:', e));
+
+// 首次安装(加载已解压的扩展程序)后自动打开设置页,引导填写 API Key;
+// 更新/重载(reason: update 等)不打扰
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  if (reason === 'install') chrome.runtime.openOptionsPage();
+});
 
 const TRANSLATE_BATCH = 25;             // 每批翻译句数
 const FIRST_BATCH = 5;                  // 首批小批量翻译:缩短"开口"延迟
@@ -146,7 +152,7 @@ async function handleStart(msg, sender) {
     stopped: false,
   };
   tasks.set(msg.videoId, task);
-  console.log('[ytb-tts] 任务启动:', msg.videoId, '共', msg.cues.length, '句');
+  console.log('[transnotes] 任务启动:', msg.videoId, '共', msg.cues.length, '句');
 
   // 字幕写入共享缓存(笔记/双语视图复用,不重复调 AI);
   // skipTranslate 通道字幕本身即中文,zh 直接置为原文
@@ -160,11 +166,11 @@ async function handleStart(msg, sender) {
     const item = { index: c.index, start: c.start, end: c.end, text: c.text };
     if (task.skipTranslate) item.zh = c.text;
     return item;
-  })).catch((e) => console.warn('[ytb-tts] 字幕缓存写入失败:', e));
+  })).catch((e) => console.warn('[transnotes] 字幕缓存写入失败:', e));
 
   // 流水线在后台推进,不阻塞响应
   runPipeline(task).catch((e) => {
-    console.error('[ytb-tts] 流水线异常:', e);
+    console.error('[transnotes] 流水线异常:', e);
     pushError(task, e);
   });
 
@@ -234,7 +240,7 @@ async function runPipeline(task) {
         if (cue.zh) zhUpdates[cue.index] = cue.zh;
       }
       VdcCache.setCueZh(task.videoKey, zhUpdates)
-        .catch((e) => console.warn('[ytb-tts] 译文回填缓存失败:', e));
+        .catch((e) => console.warn('[transnotes] 译文回填缓存失败:', e));
     }
 
     // 合成并即时推送本批
@@ -243,7 +249,7 @@ async function runPipeline(task) {
 
   // 阶段 3:通知全部就绪
   if (!task.stopped) {
-    console.log('[ytb-tts] 全部句子已推送:', videoId, '共', cues.length, '句');
+    console.log('[transnotes] 全部句子已推送:', videoId, '共', cues.length, '句');
     chrome.tabs
       .sendMessage(task.tabId, { type: 'DUB_ALL_READY', videoId, total: cues.length })
       .catch(() => {});
@@ -316,7 +322,7 @@ async function advanceSynthesis(task, list) {
 /** 推送单句音频(逐句路径) */
 function sendCueAudio(task, cue, base64) {
   cue.audioSent = true;
-  console.log('[ytb-tts] 推送音频:', task.videoId, 'index =', cue.index);
+  console.log('[transnotes] 推送音频:', task.videoId, 'index =', cue.index);
   chrome.tabs
     .sendMessage(task.tabId, {
       type: 'DUB_CUE_READY',
@@ -382,7 +388,7 @@ async function synthesizeChunkAndPush(task, chunk) {
     pushChunk(task, chunk, base64, segments);
     return true;
   } catch (e) {
-    console.warn('[ytb-tts] 合并合成失败,回退逐句:', (e && e.message) || e);
+    console.warn('[transnotes] 合并合成失败,回退逐句:', (e && e.message) || e);
     return false;
   }
 }
@@ -390,7 +396,7 @@ async function synthesizeChunkAndPush(task, chunk) {
 /** 推送合并块:整段音频 + 每句在音频内的时间区间(秒) */
 function pushChunk(task, chunk, base64, segments) {
   chunk.forEach((c) => { c.audioSent = true; });
-  console.log('[ytb-tts] 推送合并音频:', task.videoId,
+  console.log('[transnotes] 推送合并音频:', task.videoId,
     `index ${chunk[0].index}-${chunk[chunk.length - 1].index}`, `共 ${chunk.length} 句`);
   chrome.tabs
     .sendMessage(task.tabId, {

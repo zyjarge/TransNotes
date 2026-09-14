@@ -24,7 +24,7 @@
 (function () {
   'use strict';
 
-  const HOST_ID = 'ytb-tts-capture';
+  const HOST_ID = 'transnotes-capture';
 
   let hooks = null;
   let host = null;     // 浮层宿主元素(非 null 表示浮层开着)
