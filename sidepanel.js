@@ -143,7 +143,9 @@
   // 页面侧写入(捕捉笔记、字幕译文回填、草稿生成)时即时刷新对应视图,
   // 不必等视频切换的轮询
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !currentKey) return;
+    if (area !== 'local') return;
+    if (changes['customTemplates']) initAnoteTemplates(); // 设置页改了模板:下拉即时刷新
+    if (!currentKey) return;
     if (changes['notes:' + currentKey]) renderNotes();
     if (changes['draft:' + currentKey]) renderDraft();
     if (changes['ask:' + currentKey]) renderQA();
@@ -275,7 +277,25 @@
       wrap.appendChild(pre);
       body = body.slice(fm[0].length);
     }
-    await MdRender.render(wrap, body, { onTimestamp: seekTo });
+    if (!body.trim() && !fm) {
+      wrap.innerHTML = '<div class="empty">点击上方「生成 / 更新草稿」自动生成笔记;需要手工修改时点右上角「编辑」</div>';
+      return;
+    }
+    // MdRender.render 会重置容器内容,正文渲染到独立子容器,保住 frontmatter 块
+    const bodyWrap = document.createElement('div');
+    wrap.appendChild(bodyWrap);
+    await MdRender.render(bodyWrap, body, { onTimestamp: seekTo });
+  }
+
+  /** 当前是否处于预览态(默认为预览,点「编辑」才进入编辑态) */
+  function isDraftPreview() {
+    const btn = document.querySelector('[data-dmode="preview"]');
+    return !!(btn && btn.classList.contains('on'));
+  }
+
+  /** 草稿内容变化(生成/回填)且当前在预览态时,同步刷新预览 */
+  function refreshDraftPreviewIfShown() {
+    if (isDraftPreview()) renderDraftPreview($('draft').value);
   }
 
   /* 编辑 / 预览 切换;切到预览时按编辑器当前内容渲染(含未保存的修改) */
@@ -292,15 +312,18 @@
   async function initAnoteTemplates() {
     const sel = $('anote-tpl');
     sel.innerHTML = '';
-    for (const [id, t] of Object.entries(VdcNotes.NOTE_TEMPLATES)) {
+    // 内置 + 用户自定义模板(设置页「笔记与导出」管理)
+    const templates = await VdcNotes.getAllTemplates();
+    for (const [id, t] of Object.entries(templates)) {
       const opt = document.createElement('option');
       opt.value = id;
-      opt.textContent = t.desc ? `${t.name} — ${t.desc}` : t.name;
+      opt.textContent = (t.builtin ? '' : '⭐ ') + (t.desc ? `${t.name} — ${t.desc}` : t.name);
       sel.appendChild(opt);
     }
     // 默认选中设置页的长期偏好
     const { options } = await chrome.storage.local.get('options');
     sel.value = (options && options.noteTemplate) || VdcNotes.DEFAULT_TEMPLATE;
+    if (!sel.value) sel.selectedIndex = 0; // 默认模板已被删除等异常:回落第一项
   }
 
   async function renderAutoNote() {
@@ -577,7 +600,10 @@
   async function renderDraft() {
     const draft = currentKey ? await VdcNotes.getDraft(currentKey) : null;
     // 用户编辑过(含自动保存触发的回填事件)时不覆盖编辑器内容,避免光标跳动
-    if (!saveTimer && !dirty) $('draft').value = (draft && draft.md) || '';
+    if (!saveTimer && !dirty) {
+      $('draft').value = (draft && draft.md) || '';
+      refreshDraftPreviewIfShown();
+    }
     dirty = false;
   }
 
@@ -593,6 +619,7 @@
       if (!resp || !resp.ok) throw new Error((resp && resp.error) || '生成失败');
       $('draft').value = resp.md;
       dirty = false;
+      refreshDraftPreviewIfShown();
       setStatus('草稿已生成,可编辑后导出');
     } catch (e) {
       setStatus((e && e.message) || String(e), true);

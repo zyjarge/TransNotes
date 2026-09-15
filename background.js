@@ -175,6 +175,11 @@ async function handleStart(msg, sender) {
   if (!options.minimaxApiKey) {
     return { ok: false, error: '请先在设置页填写 MiniMax API Key' };
   }
+  // 自定义音色 ID(用户在设置页填自己的克隆音色)优先于下拉选择;
+  // 克隆音色 id 不落代码,只存本机配置
+  if (typeof options.customVoiceId === 'string' && options.customVoiceId.trim()) {
+    options.voiceId = options.customVoiceId.trim();
+  }
 
   // 停止该标签页上的所有旧任务(含上一个视频的:SPA 切换后旧任务若不停止,
   // 会继续空烧 TTS 配额并推送旧视频音频)

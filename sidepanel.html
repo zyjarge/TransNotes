@@ -209,8 +209,8 @@
       <button id="export">导出到 Obsidian</button>
       <span class="spacer"></span>
       <div class="modes" style="margin-bottom:0">
-        <button data-dmode="edit" class="on">编辑</button>
-        <button data-dmode="preview">预览</button>
+        <button data-dmode="edit">编辑</button>
+        <button data-dmode="preview" class="on">预览</button>
       </div>
     </div>
     <div class="row vault-row">
@@ -218,8 +218,8 @@
       <button id="switch-vault" title="临时切换到另一个文件夹(仅本次会话,不改变默认设置)">临时切换…</button>
       <button id="reset-vault" style="display:none" title="恢复为设置页配置的默认 vault">恢复默认</button>
     </div>
-    <textarea id="draft" placeholder="点击上方「生成 / 更新草稿」自动生成笔记,可在此基础上编辑"></textarea>
-    <div id="draft-preview" style="display:none"></div>
+    <textarea id="draft" style="display:none" placeholder="点击上方「生成 / 更新草稿」自动生成笔记,可在此基础上编辑"></textarea>
+    <div id="draft-preview"></div>
   </section>
 
   <script src="lib/vendor/marked.min.js"></script>

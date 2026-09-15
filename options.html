@@ -60,6 +60,14 @@
       font-size: 14px;
       background: #fff;
     }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      resize: vertical;
+    }
     .hint { font-size: 12px; color: #888; margin-top: 4px; }
     .checks label { display: block; font-size: 13px; margin: 6px 0; }
     .checks input[type="checkbox"] { width: auto; margin-right: 6px; }
@@ -67,6 +75,27 @@
                  background: #fff; cursor: pointer; }
     .vault-btn:hover { background: #f2f2f2; }
     #vault-name { margin-left: 8px; }
+
+    /* 模板管理 */
+    .tpl-row { border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px;
+               background: #fff; }
+    .tpl-head { display: flex; align-items: center; gap: 8px; }
+    .tpl-name { font-weight: 600; font-size: 13px; }
+    .tpl-badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #eef6ff;
+                 color: #3ea6ff; flex: none; }
+    .tpl-badge.custom { background: #fff3e0; color: #e65100; }
+    .tpl-default-mark { font-size: 11px; color: #0a7d33; flex: none; }
+    .tpl-desc { font-size: 12px; color: #888; margin-top: 2px; }
+    .tpl-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+    .tpl-actions button { padding: 2px 10px; font-size: 12px; border: 1px solid #ccc;
+                          border-radius: 6px; background: #fff; cursor: pointer; }
+    .tpl-actions button:hover { background: #f2f2f2; }
+    .tpl-actions button:disabled { opacity: .4; cursor: not-allowed; }
+    .tpl-prompt-view { white-space: pre-wrap; background: #f6f6f6; border-radius: 6px;
+                       padding: 8px; font: 12px/1.6 ui-monospace, monospace;
+                       max-height: 220px; overflow-y: auto; margin-top: 6px; color: #444; }
+    #tpl-editor { border: 1px solid #d5e8ff; border-radius: 8px; padding: 12px;
+                  background: #f8fbff; margin-top: 10px; }
 
     /* 保存栏:吸底,切菜单时始终可见 */
     .save-bar {
@@ -117,6 +146,11 @@
         <div class="field">
           <label for="voiceId">音色</label>
           <select id="voiceId"></select>
+        </div>
+        <div class="field">
+          <label for="customVoiceId">自定义音色 ID(可选)</label>
+          <input type="text" id="customVoiceId" placeholder="使用自己在 MiniMax 克隆的音色时填写,如 xxx_latest">
+          <div class="hint">填写后优先于上方下拉选择;只保存在本机配置中。</div>
         </div>
         <div class="field">
           <label for="speed">语速(0.5 ~ 2.0)</label>
@@ -170,13 +204,31 @@
         </div>
         <div class="field">
           <label for="noteTemplate">默认笔记模板(自动笔记)</label>
-          <select id="noteTemplate">
-            <option value="cornell">康奈尔笔记 — 要点 + 自测问题 + 总结,适合系统学习与复习</option>
-            <option value="outline">大纲笔记 — 层级大纲梳理内容结构,适合快速把握全貌</option>
-            <option value="feynman">费曼讲解 — 大白话讲透每个概念,适合入门陌生领域</option>
-            <option value="zettelkasten">卡片盒笔记 — 原子概念卡片 + 关联,适合长期知识积累</option>
-          </select>
+          <select id="noteTemplate"></select>
           <div class="hint">长期偏好;侧边栏「笔记」页签里可按视频临时换模板重新生成。</div>
+        </div>
+        <div class="field">
+          <label>模板管理</label>
+          <div id="tpl-list"></div>
+          <button type="button" id="tpl-new" class="vault-btn">新建模板</button>
+          <div class="hint">内置模板只读,可「基于此新建」改造成自定义模板;自定义模板可编辑/删除;当前默认模板不可删除,需先把默认切换为其他模板。</div>
+        </div>
+        <div id="tpl-editor" style="display:none">
+          <div class="field">
+            <label for="tpl-name">模板名称</label>
+            <input type="text" id="tpl-name" placeholder="例如:技术调研笔记">
+          </div>
+          <div class="field">
+            <label for="tpl-desc">一句话说明(选填,显示在下拉框中)</label>
+            <input type="text" id="tpl-desc" placeholder="例如:适合技术类视频,输出调研报告结构">
+          </div>
+          <div class="field">
+            <label for="tpl-prompt">提示词</label>
+            <textarea id="tpl-prompt" rows="10" style="font:12px/1.6 ui-monospace,monospace"></textarea>
+            <div class="hint">系统会自动在提示词后附加硬性规则:时间戳取自字幕行首 [mm:ss]、直接输出 Markdown 不加代码围栏。</div>
+          </div>
+          <button type="button" id="tpl-save" class="primary" style="margin-top:0;padding:8px 20px">保存模板</button>
+          <button type="button" id="tpl-cancel" class="vault-btn">取消</button>
         </div>
         <div class="field">
           <label>导出笔记包含内容</label>
@@ -198,6 +250,7 @@
     </main>
   </div>
 
+  <script src="lib/notes.js"></script>
   <script src="lib/exporter.js"></script>
   <script src="options.js"></script>
 </body>
