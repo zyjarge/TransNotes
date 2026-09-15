@@ -736,4 +736,11 @@
       t: v.currentTime,
     });
   }, 1000);
+
+  // 侧边栏查询当前播放位置(助教提问定位上下文)
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'VDC_GET_TIME') return;
+    const v = getVideoElement();
+    sendResponse({ ok: true, t: v ? v.currentTime || 0 : 0 });
+  });
 })();

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>视频笔记</title>
+  <link rel="stylesheet" href="lib/vendor/katex/katex.min.css">
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 12px 14px; font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; color: #222; }
@@ -62,6 +63,9 @@
     .an-li[data-indent="2"] { padding-left: 38px; }
     .an-ts { color: #3ea6ff; cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12px; }
     .an-ts:hover { text-decoration: underline; }
+    .an-table { border-collapse: collapse; margin: 6px 0; font-size: 12px; max-width: 100%; }
+    .an-table th, .an-table td { border: 1px solid #e0e0e0; padding: 4px 8px; text-align: left; }
+    .an-table th { background: #f7f7f7; font-weight: 600; }
 
     /* 笔记视图 */
     .note { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
@@ -95,6 +99,34 @@
     .notes-pane { display: none; }
     .notes-pane.on { display: block; }
 
+    /* 统一 Markdown 渲染器输出的内容样式(自动笔记/助教回答/草稿预览) */
+    #anote table, .qa-a table, #draft-preview table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+    #anote th, #anote td, .qa-a th, .qa-a td, #draft-preview th, #draft-preview td {
+      border: 1px solid #e0e0e0; padding: 4px 8px; text-align: left; }
+    #anote th, .qa-a th, #draft-preview th { background: #f7f7f7; }
+    #anote pre, .qa-a pre, #draft-preview pre { background: #f6f6f6; padding: 8px;
+      border-radius: 6px; overflow-x: auto; font-size: 12px; }
+    #anote code, .qa-a code, #draft-preview code { font-family: ui-monospace, monospace;
+      font-size: 12px; background: #f2f2f2; padding: 0 3px; border-radius: 3px; }
+    #anote pre code, .qa-a pre code, #draft-preview pre code { background: none; padding: 0; }
+    .katex { font-size: 1.05em; }
+
+    /* 助教视图 */
+    .qa-item { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    .qa-q { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .qa-q .ts { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px;
+                cursor: pointer; font-weight: 400; margin-right: 6px; }
+    .qa-q .ts:hover { text-decoration: underline; }
+    .qa-q .del { float: right; border: none; background: none; color: #bbb; padding: 0 4px;
+                 font-size: 14px; cursor: pointer; }
+    .qa-q .del:hover { color: #c00; }
+    .qa-a { font-size: 13px; color: #333; word-break: break-word; }
+    .qa-input-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px;
+                    position: sticky; bottom: 0; background: #fff; padding-top: 6px; }
+    #qa-input { flex: 1; resize: vertical; border: 1px solid #ccc; border-radius: 6px;
+                padding: 8px 10px; font: 13px/1.5 inherit; }
+    #qa-send { flex: none; }
+
     /* 草稿视图 */
     #draft { width: 100%; height: 62vh; min-height: 320px; resize: vertical;
              font: 12px/1.5 ui-monospace, monospace;
@@ -122,6 +154,7 @@
     <button data-tab="subs" class="on">字幕</button>
     <button data-tab="overview">概览</button>
     <button data-tab="notes">笔记</button>
+    <button data-tab="tutor">助教</button>
     <button data-tab="draft">笔记导出</button>
   </nav>
 
@@ -162,6 +195,14 @@
     </div>
   </section>
 
+  <section id="tab-tutor">
+    <div id="qa-list"></div>
+    <div class="qa-input-row">
+      <textarea id="qa-input" rows="2" placeholder="就当前视频内容提问,助教结合上下文解答(自动带入当前播放位置前后约 1 分钟的字幕);Ctrl/Cmd+Enter 发送"></textarea>
+      <button id="qa-send" class="primary">提问</button>
+    </div>
+  </section>
+
   <section id="tab-draft">
     <div class="row">
       <button id="gen" class="primary">生成 / 更新草稿</button>
@@ -181,6 +222,11 @@
     <div id="draft-preview" style="display:none"></div>
   </section>
 
+  <script src="lib/vendor/marked.min.js"></script>
+  <script src="lib/vendor/dompurify.min.js"></script>
+  <script src="lib/vendor/katex/katex.min.js"></script>
+  <script src="lib/vendor/katex/auto-render.min.js"></script>
+  <script src="lib/mdrender.js"></script>
   <script src="lib/cache.js"></script>
   <script src="lib/notes.js"></script>
   <script src="lib/exporter.js"></script>

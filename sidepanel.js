@@ -146,6 +146,7 @@
     if (area !== 'local' || !currentKey) return;
     if (changes['notes:' + currentKey]) renderNotes();
     if (changes['draft:' + currentKey]) renderDraft();
+    if (changes['ask:' + currentKey]) renderQA();
     if (changes['subs:' + currentKey]) {
       VdcCache.getSubtitles(currentKey).then((doc) => {
         currentCues = (doc && doc.cues) || [];
@@ -257,120 +258,11 @@
    * 点「生成笔记」才调 AI(手动触发控制成本);按 视频×模板 分别缓存。
    */
 
-  /** 行内渲染:**粗体** 与 [mm:ss] 时间戳(可点击跳回视频) */
-  function appendInline(container, text) {
-    const boldParts = text.split(/\*\*(.+?)\*\*/g);
-    boldParts.forEach((part, i) => {
-      if (i % 2 === 1) {
-        const b = document.createElement('b');
-        appendTs(b, part);
-        container.appendChild(b);
-      } else {
-        appendTs(container, part);
-      }
-    });
-  }
+  /** 行内渲染/表格/时间戳等旧自研渲染器已移除,统一走 lib/mdrender.js
+   * (marked + KaTeX + DOMPurify,本地打包;[mm:ss] 时间戳可点击跳回视频,
+   * attachments/{shotId}.jpg 截图按 id 从缓存解析显示) */
 
-  function appendTs(container, text) {
-    const re = /\[(\d{1,3}:\d{2}(?::\d{2})?)\]/g;
-    let last = 0;
-    let m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const span = document.createElement('span');
-      span.className = 'an-ts';
-      span.textContent = m[1];
-      span.title = '跳回视频对应位置';
-      // 注意:循环结束后 m 为 null(exec 无匹配返回 null 退出循环),
-      // 闭包必须捕获当次匹配值,不能直接引用 m
-      const sec = tsToSec(m[1]);
-      span.addEventListener('click', () => seekTo(sec));
-      container.appendChild(span);
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
-  }
-
-  function tsToSec(s) {
-    const p = s.split(':').map(Number);
-    return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
-  }
-
-  /** 极简 Markdown 渲染:##/### 标题、- 列表(带缩进)、段落;其余按段落处理 */
-  function renderMd(md, container) {
-    container.innerHTML = '';
-    for (const raw of md.split('\n')) {
-      const line = raw.replace(/\s+$/, '');
-      if (!line.trim()) continue;
-      const h3 = line.match(/^###\s+(.*)/);
-      const h2 = !h3 && line.match(/^##\s+(.*)/);
-      const li = !h3 && !h2 && line.match(/^(\s*)[-*]\s+(.*)/);
-      const el = document.createElement('div');
-      if (h3) {
-        el.className = 'an-h3';
-        appendInline(el, h3[1]);
-      } else if (h2) {
-        el.className = 'an-h2';
-        appendInline(el, h2[1]);
-      } else if (li) {
-        el.className = 'an-li';
-        el.dataset.indent = String(Math.min(2, Math.floor(li[1].length / 2)));
-        appendInline(el, li[2]);
-      } else {
-        el.className = 'an-p';
-        appendInline(el, line);
-      }
-      container.appendChild(el);
-    }
-  }
-
-  /* ---------------- 草稿 Markdown 预览 ----------------
-   * 轻量渲染(非完整 CommonMark):frontmatter、#/##/### 标题、- 列表、
-   * **粗体**、[text](url) 链接、[mm:ss] 时间戳(可点击跳回视频)、
-   * 截图 ![](attachments/{shotId}.jpg) 按 id 从缓存取 dataURL 显示。
-   */
-
-  /** 行内渲染:**粗体**、[text](url) 链接、[mm:ss] 时间戳 */
-  function appendInlineRich(container, text) {
-    const boldParts = text.split(/\*\*(.+?)\*\*/g);
-    boldParts.forEach((part, i) => {
-      if (i % 2 === 1) {
-        const b = document.createElement('b');
-        appendLinkTs(b, part);
-        container.appendChild(b);
-      } else {
-        appendLinkTs(container, part);
-      }
-    });
-  }
-
-  function appendLinkTs(container, text) {
-    const re = /\[([^\]]+)\]\((https?:[^)]+)\)|\[(\d{1,3}:\d{2}(?::\d{2})?)\]/g;
-    let last = 0;
-    let m;
-    while ((m = re.exec(text))) {
-      if (m.index > last) container.appendChild(document.createTextNode(text.slice(last, m.index)));
-      if (m[2]) {
-        const a = document.createElement('a');
-        a.href = m[2];
-        a.textContent = m[1];
-        a.target = '_blank';
-        a.rel = 'noopener';
-        container.appendChild(a);
-      } else {
-        const span = document.createElement('span');
-        span.className = 'an-ts';
-        span.textContent = m[3];
-        span.title = '跳回视频对应位置';
-        const sec = tsToSec(m[3]); // 循环结束后 m 为 null,闭包须捕获当次值
-        span.addEventListener('click', () => seekTo(sec));
-        container.appendChild(span);
-      }
-      last = m.index + m[0].length;
-    }
-    if (last < text.length) container.appendChild(document.createTextNode(text.slice(last)));
-  }
-
+  /** 草稿 Markdown 预览:frontmatter 单独成块,正文走统一渲染器 */
   async function renderDraftPreview(md) {
     const wrap = $('draft-preview');
     wrap.innerHTML = '';
@@ -383,42 +275,7 @@
       wrap.appendChild(pre);
       body = body.slice(fm[0].length);
     }
-    for (const raw of body.split('\n')) {
-      const line = raw.replace(/\s+$/, '');
-      if (!line.trim()) continue;
-      const imgM = line.match(/^!\[[^\]]*\]\(attachments\/(.+?)\.jpg\)\s*$/);
-      if (imgM) {
-        const img = document.createElement('img');
-        img.className = 'md-img';
-        img.alt = '截图';
-        VdcCache.getShot(imgM[1]).then((u) => { if (u) img.src = u; });
-        wrap.appendChild(img);
-        continue;
-      }
-      const h1 = line.match(/^#\s+(.*)/);
-      const h3 = !h1 && line.match(/^###\s+(.*)/);
-      const h2 = !h1 && !h3 && line.match(/^##\s+(.*)/);
-      const li = !h1 && !h3 && !h2 && line.match(/^(\s*)[-*]\s+(.*)/);
-      const el = document.createElement('div');
-      if (h1) {
-        el.className = 'md-h1';
-        appendInlineRich(el, h1[1]);
-      } else if (h3) {
-        el.className = 'an-h3';
-        appendInlineRich(el, h3[1]);
-      } else if (h2) {
-        el.className = 'an-h2';
-        appendInlineRich(el, h2[1]);
-      } else if (li) {
-        el.className = 'an-li';
-        el.dataset.indent = String(Math.min(2, Math.floor(li[1].length / 2)));
-        appendInlineRich(el, li[2]);
-      } else {
-        el.className = 'an-p';
-        appendInlineRich(el, line);
-      }
-      wrap.appendChild(el);
-    }
+    await MdRender.render(wrap, body, { onTimestamp: seekTo });
   }
 
   /* 编辑 / 预览 切换;切到预览时按编辑器当前内容渲染(含未保存的修改) */
@@ -460,7 +317,7 @@
       wrap.innerHTML = '<div class="empty">选择模板后点「生成笔记」——按模板风格自动生成整片学习笔记</div>';
       return;
     }
-    renderMd(note.md, wrap);
+    MdRender.render(wrap, note.md, { onTimestamp: seekTo });
   }
 
   $('anote-tpl').addEventListener('change', renderAutoNote); // 临时换风格:有缓存秒出
@@ -476,7 +333,7 @@
         force: true, // 用户显式点击 = 按当前选中模板重建
       });
       if (!resp || !resp.ok) throw new Error((resp && resp.error) || '生成失败');
-      renderMd(resp.note.md, $('anote'));
+      MdRender.render($('anote'), resp.note.md, { onTimestamp: seekTo });
       $('gen-anote').textContent = '重新生成';
       setStatus('笔记已生成');
     } catch (e) {
@@ -624,6 +481,97 @@
     }
   }
 
+  /* ---------------- 助教视图 ----------------
+   * 观看中就知识点提问:自动带入当前播放位置(经 VDC_GET_TIME 查询页面),
+   * 由 Background 组装上下文(标题+概览+前后字幕+近期问答)调文本模型。
+   * 问答持久化 ask:{videoKey},导出草稿时并入「助教问答」章节。
+   */
+
+  // 渲染序号守卫:askTutor 的显式渲染与 storage.onChanged 的触发渲染会并发,
+  // 旧渲染在 await 后于新渲染清空列表再 append,导致整列显示两遍
+  let qaRenderSeq = 0;
+
+  async function renderQA() {
+    const seq = ++qaRenderSeq;
+    const list = currentKey ? await VdcCache.getQA(currentKey) : [];
+    if (seq !== qaRenderSeq) return; // 已有更新的渲染在进行,放弃本次
+    const wrap = $('qa-list');
+    wrap.innerHTML = '';
+    if (!list.length) {
+      wrap.innerHTML = '<div class="empty">观看中遇到不懂的知识点,在下方直接提问——助教会结合当前播放位置前后的字幕解答</div>';
+      return;
+    }
+    for (const qa of list) {
+      const div = document.createElement('div');
+      div.className = 'qa-item';
+      const q = document.createElement('div');
+      q.className = 'qa-q';
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '×';
+      del.title = '删除这条问答';
+      del.addEventListener('click', async () => {
+        await VdcCache.deleteQA(currentKey, qa.id);
+        renderQA();
+      });
+      const ts = document.createElement('span');
+      ts.className = 'ts';
+      ts.textContent = VdcNotes.fmtTime(qa.ts);
+      ts.title = '跳回视频对应位置';
+      ts.addEventListener('click', () => seekTo(qa.ts));
+      q.appendChild(del);
+      q.appendChild(ts);
+      q.appendChild(document.createTextNode(qa.question));
+      const a = document.createElement('div');
+      a.className = 'qa-a';
+      MdRender.render(a, qa.answer || '', { onTimestamp: seekTo }); // 助教回答是 Markdown(含表格/公式)
+      div.appendChild(q);
+      div.appendChild(a);
+      wrap.appendChild(div);
+    }
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  let asking = false;
+  async function askTutor() {
+    if (asking) return;
+    const input = $('qa-input');
+    const question = input.value.trim();
+    if (!question) return;
+    if (!currentKey) { setStatus('当前标签页不是视频页', true); return; }
+    asking = true;
+    $('qa-send').disabled = true;
+    $('qa-send').textContent = '思考中…';
+    try {
+      // 取当前播放位置定位上下文;页面脚本未就绪时按 0 处理(只用概览做上下文)
+      let t = 0;
+      try {
+        const timeResp = await chrome.tabs.sendMessage(currentTabId, { type: 'VDC_GET_TIME' });
+        if (timeResp && timeResp.ok && typeof timeResp.t === 'number') t = timeResp.t;
+      } catch (e) { /* 页面脚本未注入 */ }
+      const resp = await chrome.runtime.sendMessage({
+        type: 'ASK_TUTOR', videoKey: currentKey, question, t,
+      });
+      if (!resp || !resp.ok) throw new Error((resp && resp.error) || '提问失败');
+      input.value = '';
+      await renderQA();
+    } catch (e) {
+      setStatus((e && e.message) || String(e), true);
+    } finally {
+      asking = false;
+      $('qa-send').disabled = false;
+      $('qa-send').textContent = '提问';
+    }
+  }
+
+  $('qa-send').addEventListener('click', askTutor);
+  $('qa-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      askTutor();
+    }
+  });
+
   /* ---------------- 草稿视图 ---------------- */
 
   async function renderDraft() {
@@ -751,7 +699,7 @@
     }
     renderCues();
     refreshVaultLabel();
-    await Promise.all([renderOverview(), renderNotes(), renderDraft(), renderAutoNote()]);
+    await Promise.all([renderOverview(), renderNotes(), renderDraft(), renderAutoNote(), renderQA()]);
   }
 
   /* ---------------- 自动准备:抓字幕 → 补翻译 → 生成概览 ----------------

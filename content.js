@@ -925,6 +925,13 @@
     return true; // 异步响应
   });
 
+  // 侧边栏查询当前播放位置(助教提问定位上下文)
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'VDC_GET_TIME') return;
+    const v = getVideoElement();
+    sendResponse({ ok: true, t: v ? v.currentTime || 0 : 0 });
+  });
+
   // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;

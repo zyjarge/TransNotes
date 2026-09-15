@@ -17,7 +17,7 @@
     polishSubtitles: false,
     overviewLevel: 'normal',
     noteTemplate: 'cornell',
-    exportSections: { meta: true, overview: true, notes: true, autoNote: true, subtitles: true },
+    exportSections: { meta: true, overview: true, notes: true, autoNote: true, qa: true, subtitles: true },
   };
 
   const VOICES = [
@@ -67,6 +67,7 @@
     $('expOverview').checked = !!es.overview;
     $('expNotes').checked = !!es.notes;
     $('expAutoNote').checked = es.autoNote !== false;
+    $('expQA').checked = es.qa !== false;
     $('expSubs').checked = !!es.subtitles;
   }
 
@@ -88,6 +89,7 @@
         overview: $('expOverview').checked,
         notes: $('expNotes').checked,
         autoNote: $('expAutoNote').checked,
+        qa: $('expQA').checked,
         subtitles: $('expSubs').checked,
       },
     };

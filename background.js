@@ -14,7 +14,7 @@
  * 注意:MV3 下 Service Worker 可能随时休眠;合成结果全部通过
  * chrome.tabs.sendMessage 即时推送,不依赖 SW 长期存活。
  */
-importScripts('lib/cache.js', 'lib/notes.js', 'lib/translate.js', 'lib/minimax_tts.js', 'lib/wbi.js');
+importScripts('lib/cache.js', 'lib/notes.js', 'lib/translate.js', 'lib/minimax_tts.js', 'lib/wbi.js', 'lib/tutor.js');
 
 'use strict';
 
@@ -759,6 +759,25 @@ async function handleGenAutoNote(msg) {
   }
 }
 
+/**
+ * 助教提问:组装上下文(标题+概览+前后字幕+近期问答)调文本模型,
+ * 问答持久化(ask:{videoKey}),导出草稿时并入「助教问答」章节
+ */
+async function handleAskTutor(msg) {
+  try {
+    const options = await getOptions();
+    const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, {
+      baseUrl: options.translateBaseUrl,
+      apiKey: options.translateApiKey,
+      model: options.translateModel,
+      disableThinking: options.disableThinking,
+    });
+    return { ok: true, qa };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
 /* ---------------- 消息路由 ---------------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
@@ -781,6 +800,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleTranslateSubs(msg);
       case 'GEN_AUTONOTE':
         return await handleGenAutoNote(msg);
+      case 'ASK_TUTOR':
+        return await handleAskTutor(msg);
       case 'OPEN_PANEL':
         return await handleOpenPanel(sender);
       default:
