@@ -21,8 +21,8 @@
     exportSections: { meta: true, overview: true, notes: true, autoNote: true, qa: true, subtitles: true },
   };
 
-  // MiniMax 官方系统音色(2026-09 核对官方 System Voice ID List);
-  // female-* 为上一代音色 id(各集成方文档仍在广泛使用),Chinese (Mandarin)_* 为新系列
+  // MiniMax 官方系统音色(2026-09 核对官方中文文档系统音色列表);
+  // female-* 为上一代音色 id,Chinese (Mandarin)_* 为新系列;名称以官方中文名为准
   const VOICES = [
     // 男声
     { id: 'male-qn-qingse', name: '青涩青年音色' },
@@ -34,17 +34,23 @@
     { id: 'Chinese (Mandarin)_Male_Announcer', name: '播报男声' },
     { id: 'Chinese (Mandarin)_Lyrical_Voice', name: '抒情男声' },
     { id: 'Chinese (Mandarin)_Radio_Host', name: '电台男主播' },
-    { id: 'Chinese (Mandarin)_News_Anchor', name: '新闻主播(男)' },
     // 女声
-    { id: 'female-shaonv', name: '少女音' },
-    { id: 'female-yujie', name: '御姐音' },
-    { id: 'female-chengshu', name: '成熟女声' },
-    { id: 'Chinese (Mandarin)_Mature_Woman', name: '成熟女性(新)' },
+    { id: 'female-shaonv', name: '少女音色' },
+    { id: 'female-yujie', name: '御姐音色' },
+    { id: 'female-chengshu', name: '成熟女性音色' },
+    { id: 'female-tianmei', name: '甜美女性音色' },
+    { id: 'Chinese (Mandarin)_News_Anchor', name: '新闻女声' },
+    { id: 'Chinese (Mandarin)_Mature_Woman', name: '傲娇御姐' },
     { id: 'Chinese (Mandarin)_Sweet_Lady', name: '甜美女声' },
     { id: 'Chinese (Mandarin)_IntellectualGirl', name: '知性女声' },
-    { id: 'Chinese (Mandarin)_Warm_Girl', name: '温暖女孩' },
+    { id: 'Chinese (Mandarin)_Warm_Girl', name: '温暖少女' },
     { id: 'Chinese (Mandarin)_Warm_Bestie', name: '温暖闺蜜' },
-    { id: 'Chinese (Mandarin)_Crisp_Girl', name: '清脆女孩' },
+    { id: 'Chinese (Mandarin)_Crisp_Girl', name: '清脆少女' },
+    // 特色/方言
+    { id: 'Chinese (Mandarin)_HK_Flight_Attendant', name: '港普空姐(特色)' },
+    { id: 'Chinese (Mandarin)_Humorous_Elder', name: '搞笑大爷(特色)' },
+    { id: 'Cantonese_GentleLady', name: '粤语·温柔女声' },
+    { id: 'Cantonese_PlayfulMan', name: '粤语·活泼男声' },
   ];
 
   function $(id) {

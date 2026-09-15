@@ -2,6 +2,8 @@
 
 # TransNotes — 视频中文配音 + 学习笔记
 
+> 本项目灵感来源于 <https://github.com/zarazhangrui/youtube-digest>,在其基础上进行了功能升级。
+
 一个 Chrome 扩展(MV3),把 YouTube / B 站视频变成可听、可记、可归档的学习资源:
 
 - **实时中文配音**:抓取视频字幕 → 翻译为中文(DeepSeek 等 OpenAI 兼容服务;YouTube 有中文字幕/自动翻译、B 站有 ai-zh 字幕时直通)→ MiniMax TTS 合成 → 按时间戳与原画面同步播放,原声自动静音

@@ -406,7 +406,15 @@
 
     const vk = getVideoKey();
     const dubVideoId = vk ? vk.key : null;
-    cues = await fetchSubtitles();
+    // 字幕缓存命中则跳过抓取(同一视频二次配音/换音色重配时秒进合成阶段)
+    const cachedDoc = dubVideoId
+      ? await VdcCache.getSubtitles(dubVideoId).catch(() => null) : null;
+    if (cachedDoc && cachedDoc.cues && cachedDoc.cues.length) {
+      cues = cachedDoc.cues;
+      console.log('[transnotes] 字幕命中缓存,跳过抓取:', dubVideoId, '| 共', cues.length, '句');
+    } else {
+      cues = await fetchSubtitles();
+    }
     // 打印首句便于核对字幕与视频是否对应(B 站风控曾返回过其他视频的字幕)
     console.log('[transnotes] 字幕首句:', cues[0] && cues[0].text, '| 共', cues.length, '句');
 
@@ -706,6 +714,7 @@
           title: (playerData && playerData.title) || document.title || '',
           url: location.href,
           route: 'B 站中文字幕',
+          skipTranslate: true,
         }, list.map((c) => ({ index: c.index, start: c.start, end: c.end, text: c.text, zh: c.text })));
         return { ok: true, videoKey: vk.key, needTranslate: false, count: list.length, route: 'B 站中文字幕' };
       } catch (e) {

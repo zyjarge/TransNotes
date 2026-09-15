@@ -212,6 +212,7 @@ async function handleStart(msg, sender) {
     title: msg.title || '',
     url: msg.url || '',
     route: msg.route || '',
+    skipTranslate: !!msg.skipTranslate,
   }, msg.cues.map((c) => {
     const item = { index: c.index, start: c.start, end: c.end, text: c.text };
     if (task.skipTranslate) item.zh = c.zh || c.text;

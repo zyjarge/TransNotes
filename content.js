@@ -513,7 +513,24 @@
     showLoadingOverlay('正在抓取字幕...');
 
     const dubVideoId = playerInfo ? playerInfo.videoId : null; // fetchSubtitles 会再校验
-    const sub = await fetchSubtitles();
+    // 字幕缓存命中则跳过抓取(同一视频二次配音/换音色重配时秒进合成阶段);
+    // 旧缓存无 skipTranslate 字段,按 route 名称推断
+    const cacheKey = 'yt:' + dubVideoId;
+    const cachedDoc = dubVideoId
+      ? await VdcCache.getSubtitles(cacheKey).catch(() => null) : null;
+    let sub;
+    if (cachedDoc && cachedDoc.cues && cachedDoc.cues.length) {
+      sub = {
+        cues: cachedDoc.cues,
+        skipTranslate: typeof cachedDoc.skipTranslate === 'boolean'
+          ? cachedDoc.skipTranslate
+          : /中文字幕轨|自动翻译/.test(cachedDoc.route || ''),
+        route: (cachedDoc.route || '') + '(缓存)',
+      };
+      console.log('[transnotes] 字幕命中缓存,跳过抓取:', cacheKey, '| 共', sub.cues.length, '句');
+    } else {
+      sub = await fetchSubtitles();
+    }
     cues = sub.cues;
 
     // 抓取字幕期间页面可能已切换到新视频(SPA 导航):playerInfo 会被导航监听重置
@@ -906,6 +923,7 @@
           title: (playerInfo && playerInfo.title) || document.title || '',
           url: location.href,
           route: sub.route,
+          skipTranslate: !!sub.skipTranslate,
         }, sub.cues.map((c) => {
           const item = { index: c.index, start: c.start, end: c.end, text: c.text };
           if (sub.skipTranslate) item.zh = c.zh || c.text; // 中文轨直通原文即中文;自动翻译通道 zh 为机翻中文
