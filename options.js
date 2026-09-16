@@ -112,8 +112,7 @@
   }
 
   async function save() {
-    const customId = $('customVoiceId').value.trim();
-    let voiceId = $('voiceId').value;
+    const customId = $('customVoiceId').value.trim();    let voiceId = $('voiceId').value;
     // 清空了自定义 ID 但下拉还停在自定义项上:回落到内置音色,避免"看似清了其实还在用"
     const customOpt = $('voiceId').querySelector('option[data-custom="1"]');
     if (!customId && customOpt && voiceId === customOpt.value) voiceId = VOICES[0].id;
@@ -140,6 +139,7 @@
       },
     };
     await chrome.storage.local.set({ options });
+    optionsDirty = false;
     showStatus('已保存');
   }
 
@@ -341,6 +341,19 @@
       showStatus('模板已保存');
     } catch (e) {
       alert((e && e.message) || String(e));
+    }
+  });
+
+  /* 未保存保护:修改过配置未保存就离开页面时提示(模板编辑器独立保存,不参与) */
+  let optionsDirty = false;
+  document.querySelectorAll('input, select, textarea').forEach((el) => {
+    if (el.closest('#tpl-editor')) return;
+    el.addEventListener('input', () => { optionsDirty = true; });
+  });
+  window.addEventListener('beforeunload', (e) => {
+    if (optionsDirty) {
+      e.preventDefault();
+      e.returnValue = '';
     }
   });
 

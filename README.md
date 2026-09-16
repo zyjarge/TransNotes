@@ -77,6 +77,7 @@
 
 ```
 ├── PRD.md                 # 产品需求文档(MVP 范围、技术架构、验收标准)
+├── docs/UI-SPEC.md        # UI 设计规范(提示词版,界面改动的唯一标准)
 ├── manifest.json          # MV3 清单(权限最小化)
 ├── background.js          # Service Worker:流式翻译 + TTS 合并调度 + 笔记/概览/截图消息 + 持久缓存
 ├── content.js             # YouTube Content Script:播放器按钮、字幕抓取、捕捉入口、进度广播
@@ -97,6 +98,8 @@
     ├── tutor.js           # AI 助教:上下文组装(概览+前后字幕+问答历史)+ 提问
     ├── exporter.js        # Obsidian 导出:File System Access 直写 vault,退化为下载
     ├── dubcommon.js       # 站点无关公共件(base64/WAV 编码、合并块切分、安全消息)
+    ├── ui.css             # 设计令牌与共享组件(规范见 docs/UI-SPEC.md)
+    ├── vendor/            # 本地第三方库(marked/DOMPurify/KaTeX、Space Grotesk/JetBrains Mono 字体)
     └── wbi.js             # B 站 wbi 签名(内置 MD5)
 ```
 

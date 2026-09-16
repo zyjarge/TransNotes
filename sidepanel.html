@@ -4,151 +4,156 @@
   <meta charset="UTF-8">
   <title>视频笔记</title>
   <link rel="stylesheet" href="lib/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="lib/ui.css">
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 12px 14px; font: 14px/1.6 -apple-system, "PingFang SC", sans-serif; color: #222; }
-    h1 { font-size: 15px; margin: 0 0 2px; word-break: break-all; }
-    .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
-    .brand img { width: 28px; height: 28px; border-radius: 6px; }
-    .meta { color: #888; font-size: 12px; margin-bottom: 10px; word-break: break-all; }
-    #status { font-size: 12px; color: #0a7d33; margin-bottom: 8px; min-height: 16px; }
-    #status.err { color: #c00; }
+    body { margin: 0; padding: 12px 14px 16px; font-size: 14px; line-height: 1.6; }
 
-    nav { display: flex; gap: 2px; border-bottom: 1px solid #e5e5e5; margin-bottom: 10px;
-          position: sticky; top: 0; background: #fff; z-index: 10; padding-top: 2px; }
-    nav button { border: none; background: none; padding: 6px 12px; font-size: 13px; cursor: pointer;
-                 color: #666; border-bottom: 2px solid transparent; border-radius: 0; }
-    nav button.on { color: #3ea6ff; border-bottom-color: #3ea6ff; font-weight: 600; }
-    nav button:hover { color: #222; background: none; }
+    /* ---- 头部:品牌与视频标题同行,meta 一行(规范 5) ---- */
+    header { margin-bottom: 10px; }
+    .brand-row { display: flex; align-items: center; gap: 8px; }
+    .brand-row img { width: 26px; height: 26px; border-radius: 6px; flex: none; }
+    h1 { font-size: 15px; font-weight: 600; margin: 0; word-break: break-all;
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .wave { margin-left: auto; flex: none; }
+    .meta-line { font-size: 12px; color: var(--dim); margin-top: 3px;
+                 display: flex; gap: 6px; align-items: baseline; }
+    #meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    #status { color: var(--ok); flex: none; }
+    #status.err { color: var(--err); }
 
-    button { cursor: pointer; border: 1px solid #ccc; border-radius: 6px; background: #fff;
-             padding: 5px 12px; font-size: 13px; }
-    button:hover { background: #f2f2f2; }
-    button.primary { background: #3ea6ff; border-color: #3ea6ff; color: #fff; font-weight: 600; }
-    button.primary:hover { background: #6fbdff; }
-    button:disabled { opacity: .5; cursor: default; }
+    /* ---- 分段胶囊页签(规范 6,吸顶) ---- */
+    nav { display: flex; gap: 2px; padding: 3px; margin-bottom: 12px;
+          background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+          position: sticky; top: 8px; z-index: 10; }
+    nav button { flex: 1; border: none; background: none; padding: 5px 4px; font-size: 13px;
+                 color: var(--dim); border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    nav button:hover { color: var(--text); background: none; }
+    nav button.on { background: var(--surface); color: var(--text); font-weight: 600;
+                    box-shadow: var(--shadow-1); }
+
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
     .row .spacer { margin-left: auto; }
-
     section { display: none; }
     section.on { display: block; }
-    .empty { color: #999; font-size: 13px; padding: 20px 0; text-align: center; }
+    .empty { color: var(--faint); font-size: 13px; padding: 28px 0; text-align: center; }
 
-    /* 字幕视图 */
-    .modes { display: flex; gap: 4px; margin-bottom: 8px; }
-    .modes button { padding: 2px 10px; font-size: 12px; }
-    .modes button.on { background: #eef6ff; border-color: #3ea6ff; color: #3ea6ff; }
-    .cue { padding: 4px 8px; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
-    .cue:hover { background: #f5f5f5; }
-    .cue.now { background: #eef6ff; border-left-color: #3ea6ff; }
-    .cue .t { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px; margin-right: 6px; }
-    .cue .en { display: block; color: #999; font-size: 12px; }
+    /* ---- 字幕视图 ---- */
+    .modes { display: flex; gap: 4px; margin-bottom: 10px; }
+    .modes button { padding: 2px 12px; font-size: 12px; border-radius: 999px; }
+    .modes button.on { background: var(--accent-soft); border-color: var(--accent);
+                       color: var(--accent); }
+    .modes button.on:hover { background: var(--accent-soft); }
+    .cue { padding: 5px 9px; border-radius: 8px; cursor: pointer;
+           border-left: 3px solid transparent; }
+    .cue:hover { background: var(--surface); }
+    .cue.now { background: var(--accent-soft); border-left-color: var(--accent); }
+    /* 时间码 chip(签名元素) */
+    .cue .t, .chapter .t, .an-ts, .note .ts, .qa-q .ts, .quote-item .t {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+      color: var(--accent); background: var(--accent-soft);
+      padding: 1px 6px; border-radius: 5px; letter-spacing: 0.02em;
+      cursor: pointer; white-space: nowrap; }
+    .cue .t:hover, .chapter .t:hover, .an-ts:hover, .note .ts:hover,
+    .qa-q .ts:hover, .quote-item .t:hover { background: rgba(230, 72, 93, 0.18); }
+    .cue .t { margin-right: 8px; }
+    .cue .en { display: block; color: var(--dim); font-size: 12px; margin-top: 1px; }
 
-    /* 概览视图 */
-    .chapter { padding: 6px 8px; cursor: pointer; border-radius: 6px; }
-    .chapter:hover { background: #f5f5f5; }
-    .chapter .t { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px; }
+    /* ---- 概览视图 ---- */
+    .chapter { padding: 8px 10px; cursor: pointer; border-radius: 8px; }
+    .chapter:hover { background: var(--surface); }
     .chapter .ct { font-weight: 600; }
-    .chapter .cs { color: #666; font-size: 12px; }
-    .quote-item { border-left: 3px solid #ddd; padding: 4px 10px; margin: 8px 0; color: #555; font-size: 13px; }
-    .quote-item .t { color: #3ea6ff; font-size: 12px; cursor: pointer; }
+    .chapter .cs { color: var(--dim); font-size: 12px; margin-top: 2px; }
+    .quote-item { border-left: 3px solid var(--line-strong); padding: 4px 10px;
+                  margin: 8px 0; color: var(--dim); font-size: 13px; }
 
-    /* 自动笔记 */
-    .an-h2 { font-size: 14px; font-weight: 700; margin: 12px 0 4px; color: #222; }
-    .an-h3 { font-size: 13px; font-weight: 600; margin: 8px 0 2px; color: #333; }
-    .an-p, .an-li { font-size: 13px; color: #333; margin: 2px 0; white-space: pre-wrap; word-break: break-word; }
-    .an-li { padding-left: 14px; position: relative; }
-    .an-li::before { content: '•'; position: absolute; left: 4px; color: #999; }
-    .an-li[data-indent="1"] { padding-left: 26px; }
-    .an-li[data-indent="2"] { padding-left: 38px; }
-    .an-ts { color: #3ea6ff; cursor: pointer; font-variant-numeric: tabular-nums; font-size: 12px; }
-    .an-ts:hover { text-decoration: underline; }
-    .an-table { border-collapse: collapse; margin: 6px 0; font-size: 12px; max-width: 100%; }
-    .an-table th, .an-table td { border: 1px solid #e0e0e0; padding: 4px 8px; text-align: left; }
-    .an-table th { background: #f7f7f7; font-weight: 600; }
-
-    /* 笔记视图 */
-    .note { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
-    .note .ts { color: #3ea6ff; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px;
-                cursor: pointer; }
-    .note .ts:hover { text-decoration: underline; }
-    .note .del { float: right; border: none; background: none; color: #bbb; padding: 0 4px; font-size: 14px; }
-    .note .del:hover { color: #c00; }
+    /* ---- 笔记 / 助教卡片(规范 6:白底 + 1px 描边) ---- */
+    .note, .qa-item { background: var(--surface); border: 1px solid var(--line);
+                      border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; }
+    .note .del, .qa-q .del { float: right; border: none; background: none; color: var(--faint);
+                             padding: 0 4px; font-size: 14px; cursor: pointer; }
+    .note .del:hover, .qa-q .del:hover { color: var(--err); background: none; }
     .note .edit-btn { float: right; padding: 1px 10px; font-size: 12px; margin-right: 4px; }
-    .note .edit-btn:hover { border-color: #3ea6ff; color: #3ea6ff; }
-    .note .quote { color: #777; font-size: 12px; margin: 4px 0; }
+    .note .edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .note .quote { color: var(--dim); font-size: 12px; margin: 4px 0; }
     .note .comment { white-space: pre-wrap; word-break: break-word; }
-    .note img { max-width: 100%; border-radius: 4px; margin-top: 4px; cursor: zoom-in; }
-    .note .shot-actions { margin-top: 4px; display: flex; gap: 6px; }
+    .note img { max-width: 100%; border-radius: 6px; margin-top: 6px; cursor: zoom-in; }
+    .note .shot-actions { margin-top: 6px; display: flex; gap: 6px; }
     .note .shot-actions button { padding: 2px 10px; font-size: 12px; }
-    .note .edit-area { width: 100%; min-height: 48px; resize: vertical; border: 1px solid #ddd;
-                       border-radius: 4px; padding: 6px 8px; font: 13px/1.5 inherit; margin-top: 4px; }
-    .note .edit-bar { margin-top: 4px; display: flex; gap: 6px; }
+    .note .edit-area { width: 100%; min-height: 48px; resize: vertical; padding: 6px 8px;
+                       font: 13px/1.5 var(--font-body); margin-top: 6px; }
+    .note .edit-bar { margin-top: 6px; display: flex; gap: 6px; }
     .note .edit-bar button { padding: 2px 10px; font-size: 12px; }
 
-    /* 笔记页内部垂直子标签(自动笔记 / 我的笔记) */
-    .notes-layout { display: flex; gap: 10px; align-items: flex-start; }
+    /* 笔记区垂直子标签:与顶部页签同语言(竖向左线选中态) */
+    .notes-layout { display: flex; gap: 12px; align-items: flex-start; }
     .notes-tabs { display: flex; flex-direction: column; gap: 2px; flex: none;
-                  border-right: 1px solid #e5e5e5; padding-right: 6px; }
+                  border-right: 1px solid var(--line); padding-right: 8px; }
     .notes-tabs button { border: none; background: none; padding: 6px 10px; font-size: 13px;
-                         cursor: pointer; color: #666; border-right: 2px solid transparent;
+                         cursor: pointer; color: var(--dim); border-left: 2px solid transparent;
                          border-radius: 0; text-align: left; white-space: nowrap; }
-    .notes-tabs button.on { color: #3ea6ff; border-right-color: #3ea6ff; font-weight: 600; }
-    .notes-tabs button:hover { color: #222; background: none; }
+    .notes-tabs button.on { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+    .notes-tabs button:hover { color: var(--text); background: none; }
     .notes-panes { flex: 1; min-width: 0; }
     .notes-pane { display: none; }
     .notes-pane.on { display: block; }
+    #anote-tpl { flex: 1; min-width: 0; padding: 6px 8px; font-size: 13px; }
 
-    /* 统一 Markdown 渲染器输出的内容样式(自动笔记/助教回答/草稿预览) */
-    #anote table, .qa-a table, #draft-preview table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+    /* ---- Markdown 渲染内容(自动笔记/助教/预览共用) ---- */
+    #anote, .qa-a, #draft-preview { font-size: 13px; }
+    #anote table, .qa-a table, #draft-preview table { border-collapse: collapse; margin: 8px 0; font-size: 12px; }
     #anote th, #anote td, .qa-a th, .qa-a td, #draft-preview th, #draft-preview td {
-      border: 1px solid #e0e0e0; padding: 4px 8px; text-align: left; }
-    #anote th, .qa-a th, #draft-preview th { background: #f7f7f7; }
-    #anote pre, .qa-a pre, #draft-preview pre { background: #f6f6f6; padding: 8px;
-      border-radius: 6px; overflow-x: auto; font-size: 12px; }
-    #anote code, .qa-a code, #draft-preview code { font-family: ui-monospace, monospace;
-      font-size: 12px; background: #f2f2f2; padding: 0 3px; border-radius: 3px; }
+      border: 1px solid var(--line-strong); padding: 4px 8px; text-align: left; }
+    #anote th, .qa-a th, #draft-preview th { background: var(--panel); }
+    #anote pre, .qa-a pre, #draft-preview pre { background: var(--panel); padding: 10px;
+      border-radius: 8px; overflow-x: auto; font-size: 12px; border: 1px solid var(--line); }
+    #anote code, .qa-a code, #draft-preview code { font-family: var(--font-mono);
+      font-size: 12px; background: var(--panel); padding: 0 4px; border-radius: 4px; }
     #anote pre code, .qa-a pre code, #draft-preview pre code { background: none; padding: 0; }
     .katex { font-size: 1.05em; }
+    #anote h2, .qa-a h2, #draft-preview h2 { font-size: 14px; margin: 14px 0 6px; }
+    #anote h3, .qa-a h3, #draft-preview h3 { font-size: 13px; margin: 10px 0 4px; }
+    #anote p, .qa-a p, #draft-preview p { margin: 4px 0; }
 
-    /* 助教视图 */
-    .qa-item { border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    /* ---- 助教视图 ---- */
     .qa-q { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
-    .qa-q .ts { color: #3ea6ff; font-variant-numeric: tabular-nums; font-size: 12px;
-                cursor: pointer; font-weight: 400; margin-right: 6px; }
-    .qa-q .ts:hover { text-decoration: underline; }
-    .qa-q .del { float: right; border: none; background: none; color: #bbb; padding: 0 4px;
-                 font-size: 14px; cursor: pointer; }
-    .qa-q .del:hover { color: #c00; }
-    .qa-a { font-size: 13px; color: #333; word-break: break-word; }
+    .qa-q .ts { margin-right: 6px; font-weight: 600; }
+    .qa-a { word-break: break-word; color: var(--text); }
     .qa-input-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px;
-                    position: sticky; bottom: 0; background: #fff; padding-top: 6px; }
-    #qa-input { flex: 1; resize: vertical; border: 1px solid #ccc; border-radius: 6px;
-                padding: 8px 10px; font: 13px/1.5 inherit; }
+                    position: sticky; bottom: 0; background: var(--bg);
+                    padding: 8px 0 2px; }
+    #qa-input { flex: 1; resize: vertical; padding: 8px 10px; font: 13px/1.5 var(--font-body); }
     #qa-send { flex: none; }
+    .qa-hint { font-size: 12px; color: var(--dim); margin-top: 6px; }
 
-    /* 草稿视图 */
+    /* ---- 草稿视图 ---- */
     #draft { width: 100%; height: 62vh; min-height: 320px; resize: vertical;
-             font: 12px/1.5 ui-monospace, monospace;
-             border: 1px solid #ddd; border-radius: 6px; padding: 8px; }
-    .vault-row { font-size: 12px; color: #888; }
+             font: 12px/1.6 var(--font-mono); padding: 10px; }
+    .vault-row { font-size: 12px; color: var(--dim); }
     .vault-row button { padding: 2px 10px; font-size: 12px; }
-
-    /* 草稿预览 */
     #draft-preview { height: 62vh; min-height: 320px; overflow-y: auto;
-                     border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; }
-    #draft-preview .md-frontmatter { color: #888; font-size: 12px; white-space: pre-wrap;
-                                     font-family: ui-monospace, monospace;
-                                     border-bottom: 1px dashed #e5e5e5; margin-bottom: 8px; padding-bottom: 6px; }
-    #draft-preview .md-h1 { font-size: 16px; font-weight: 700; margin: 10px 0 6px; }
-    #draft-preview .md-img { max-width: 100%; border-radius: 4px; margin: 6px 0; }
-    #draft-preview a { color: #3ea6ff; }
+                     background: var(--surface); border: 1px solid var(--line);
+                     border-radius: var(--radius); padding: 12px 14px; }
+    #draft-preview .md-frontmatter { color: var(--dim); font-size: 12px; white-space: pre-wrap;
+                                     font-family: var(--font-mono);
+                                     border-bottom: 1px dashed var(--line-strong);
+                                     margin-bottom: 10px; padding-bottom: 8px; }
+    #draft-preview .md-img, #anote img, .qa-a img { max-width: 100%; border-radius: 6px; margin: 6px 0; }
+    #draft-preview a, #anote a, .qa-a a { color: var(--accent); }
   </style>
 </head>
 <body>
-  <div class="brand"><img src="icons/icon48.png" alt="TransNotes"><h1 id="title">视频笔记</h1></div>
-  <div class="meta" id="meta"></div>
-  <div id="status"></div>
+  <header>
+    <div class="brand-row">
+      <img src="icons/icon48.png" alt="TransNotes">
+      <h1 id="title">视频笔记</h1>
+      <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="meta-line">
+      <span id="meta"></span>
+      <span id="status"></span>
+    </div>
+  </header>
 
   <nav>
     <button data-tab="subs" class="on">字幕</button>
@@ -183,7 +188,7 @@
       <div class="notes-panes">
         <div class="notes-pane on" id="ntab-anote">
           <div class="row">
-            <select id="anote-tpl" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px"></select>
+            <select id="anote-tpl"></select>
             <button id="gen-anote" class="primary">生成笔记</button>
           </div>
           <div id="anote"></div>
@@ -198,9 +203,10 @@
   <section id="tab-tutor">
     <div id="qa-list"></div>
     <div class="qa-input-row">
-      <textarea id="qa-input" rows="2" placeholder="就当前视频内容提问,助教结合上下文解答(自动带入当前播放位置前后约 1 分钟的字幕);Ctrl/Cmd+Enter 发送"></textarea>
+      <textarea id="qa-input" rows="2" placeholder="就当前视频内容提问…(Ctrl/Cmd+Enter 发送)"></textarea>
       <button id="qa-send" class="primary">提问</button>
     </div>
+    <div class="qa-hint">助教回答时自动带入当前播放位置前后约 1 分钟的字幕与全片概览。</div>
   </section>
 
   <section id="tab-draft">

@@ -3,126 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <title>TransNotes - 设置</title>
+  <link rel="stylesheet" href="lib/ui.css">
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-      margin: 0;
-      color: #1f1f1f;
-      background: #fafafa;
-    }
+    body { margin: 0; }
     .layout { display: flex; min-height: 100vh; }
 
-    /* 左侧菜单 */
+    /* 左侧菜单栏(规范 5:白底 + 珊瑚选中竖条) */
     .menu {
       flex: none;
-      width: 200px;
-      padding: 20px 12px;
-      background: #fff;
-      border-right: 1px solid #eee;
+      width: 220px;
+      padding: 24px 14px;
+      background: var(--surface);
+      border-right: 1px solid var(--line);
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 4px;
       position: sticky;
       top: 0;
       height: 100vh;
     }
-    .menu .brand { display: flex; align-items: center; gap: 8px; padding: 0 10px 16px; }
-    .menu .brand img { width: 30px; height: 30px; border-radius: 7px; }
-    .menu .brand span { font-size: 15px; font-weight: 700; }
+    .menu .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 20px; }
+    .menu .brand img { width: 32px; height: 32px; border-radius: 8px; }
+    .menu .brand span { font-family: var(--font-brand); font-weight: 700; font-size: 16px; }
+    .menu .brand span em { font-style: normal; color: var(--accent); }
     .menu button {
       border: none;
       background: none;
       text-align: left;
-      padding: 9px 12px;
+      padding: 10px 12px;
       font-size: 14px;
-      color: #555;
+      color: var(--dim);
       border-radius: 8px;
-      cursor: pointer;
+      border-left: 3px solid transparent;
     }
-    .menu button:hover { background: #f5f5f5; color: #222; }
-    .menu button.on { background: #eef6ff; color: #3ea6ff; font-weight: 600; }
-    .menu .menu-hint { margin-top: auto; padding: 0 10px; font-size: 11px; color: #bbb; line-height: 1.5; }
+    .menu button:hover { background: var(--panel); color: var(--text); }
+    .menu button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600;
+                      border-left-color: var(--accent); }
+    .menu .menu-hint { margin-top: auto; padding: 0 8px; font-size: 11px;
+                       color: var(--faint); line-height: 1.6; }
 
     /* 右侧内容 */
-    .content { flex: 1; max-width: 640px; padding: 24px 32px 60px; }
+    .content { flex: 1; max-width: 660px; padding: 28px 36px 80px; }
     section { display: none; }
     section.on { display: block; }
-    h2 { font-size: 16px; margin: 0 0 4px; }
-    .sec-desc { font-size: 12px; color: #888; margin-bottom: 16px; }
-    .field { margin: 14px 0; }
-    label { display: block; font-size: 13px; margin-bottom: 4px; }
-    input, select {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 14px;
-      background: #fff;
-    }
-    textarea {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      resize: vertical;
-    }
-    .hint { font-size: 12px; color: #888; margin-top: 4px; }
-    .checks label { display: block; font-size: 13px; margin: 6px 0; }
-    .checks input[type="checkbox"] { width: auto; margin-right: 6px; }
-    .vault-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px;
-                 background: #fff; cursor: pointer; }
-    .vault-btn:hover { background: #f2f2f2; }
-    #vault-name { margin-left: 8px; }
-
-    /* 模板管理 */
-    .tpl-row { border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px;
-               background: #fff; }
-    .tpl-head { display: flex; align-items: center; gap: 8px; }
-    .tpl-name { font-weight: 600; font-size: 13px; }
-    .tpl-badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #eef6ff;
-                 color: #3ea6ff; flex: none; }
-    .tpl-badge.custom { background: #fff3e0; color: #e65100; }
-    .tpl-default-mark { font-size: 11px; color: #0a7d33; flex: none; }
-    .tpl-desc { font-size: 12px; color: #888; margin-top: 2px; }
-    .tpl-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
-    .tpl-actions button { padding: 2px 10px; font-size: 12px; border: 1px solid #ccc;
-                          border-radius: 6px; background: #fff; cursor: pointer; }
-    .tpl-actions button:hover { background: #f2f2f2; }
-    .tpl-actions button:disabled { opacity: .4; cursor: not-allowed; }
-    .tpl-prompt-view { white-space: pre-wrap; background: #f6f6f6; border-radius: 6px;
-                       padding: 8px; font: 12px/1.6 ui-monospace, monospace;
-                       max-height: 220px; overflow-y: auto; margin-top: 6px; color: #444; }
-    #tpl-editor { border: 1px solid #d5e8ff; border-radius: 8px; padding: 12px;
-                  background: #f8fbff; margin-top: 10px; }
+    h2 { font-size: 15px; margin: 0 0 4px; }
+    .sec-desc { font-size: 12px; color: var(--dim); margin-bottom: 18px; }
+    .field { margin: 0 0 6px; padding: 14px 16px; background: var(--surface);
+             border: 1px solid var(--line); border-radius: var(--radius); }
+    .field + .field { margin-top: 10px; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: 8px 10px; font-size: 14px; }
+    textarea { resize: vertical; }
+    .hint { font-size: 12px; color: var(--dim); margin-top: 6px; line-height: 1.6; }
+    .checks label { display: block; font-size: 13px; margin: 6px 0; font-weight: 400; }
+    .checks input[type="checkbox"] { width: auto; margin-right: 6px; accent-color: var(--accent); }
 
     /* 保存栏:吸底,切菜单时始终可见 */
-    .save-bar {
-      position: sticky;
-      bottom: 0;
-      margin-top: 24px;
-      padding: 12px 0;
-      background: linear-gradient(transparent, #fafafa 30%);
-    }
-    button.primary {
-      padding: 10px 28px;
-      background: #065fd4;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    button.primary:hover { background: #1a6fd8; }
-    #save-status { margin-left: 12px; font-size: 13px; color: #0a7d33; }
-    #save-status.error { color: #c00; }
+    .save-bar { position: sticky; bottom: 0; margin-top: 24px; padding: 12px 0;
+                background: linear-gradient(transparent, var(--bg) 30%); }
+    #save-status { margin-left: 12px; font-size: 13px; color: var(--ok); }
+    #save-status.error { color: var(--err); }
+
+    /* 模板管理 */
+    .tpl-row { border: 1px solid var(--line); border-radius: var(--radius);
+               padding: 10px 12px; margin-bottom: 10px; background: var(--surface); }
+    .tpl-head { display: flex; align-items: center; gap: 8px; }
+    .tpl-name { font-weight: 600; font-size: 13px; }
+    .tpl-badge { font-family: var(--font-mono); font-size: 10px; padding: 2px 6px;
+                 border-radius: 4px; background: var(--panel); color: var(--dim); flex: none; }
+    .tpl-badge.custom { background: var(--accent-soft); color: var(--accent); }
+    .tpl-default-mark { font-family: var(--font-mono); font-size: 10px; color: var(--ok); flex: none; }
+    .tpl-desc { font-size: 12px; color: var(--dim); margin-top: 3px; }
+    .tpl-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+    .tpl-actions button { padding: 2px 10px; font-size: 12px; }
+    .tpl-prompt-view { white-space: pre-wrap; background: var(--panel); border-radius: 8px;
+                       border: 1px solid var(--line);
+                       padding: 10px; font: 12px/1.6 var(--font-mono);
+                       max-height: 220px; overflow-y: auto; margin-top: 8px; color: var(--dim); }
+    #tpl-editor { border: 1px solid var(--line-strong); border-radius: var(--radius);
+                  padding: 14px 16px; background: var(--surface); margin-top: 12px; }
+    #tpl-prompt { font: 12px/1.6 var(--font-mono); }
   </style>
 </head>
 <body>
   <div class="layout">
     <aside class="menu">
-      <div class="brand"><img src="icons/icon48.png" alt=""><span>TransNotes</span></div>
+      <div class="brand"><img src="icons/icon48.png" alt=""><span>Trans<em>Notes</em></span></div>
       <button data-sec="tts" class="on">语音合成 (TTS)</button>
       <button data-sec="llm">文本模型</button>
       <button data-sec="notes">笔记与导出</button>
@@ -160,7 +127,7 @@
 
       <section id="sec-llm">
         <h2>文本模型</h2>
-        <div class="sec-desc">字幕翻译、AI 概览、自动笔记共用的 OpenAI 兼容服务,默认 DeepSeek。</div>
+        <div class="sec-desc">字幕翻译、AI 概览、自动笔记、助教共用的 OpenAI 兼容服务,默认 DeepSeek。</div>
         <div class="field">
           <label for="translateBaseUrl">接口地址 Base URL</label>
           <input type="text" id="translateBaseUrl" placeholder="https://api.deepseek.com">
@@ -189,7 +156,7 @@
         <div class="sec-desc">笔记生成与 Obsidian 导出相关配置。</div>
         <div class="field">
           <label>Obsidian vault 文件夹(默认导出位置)</label>
-          <button type="button" id="pick-vault" class="vault-btn">选择文件夹</button>
+          <button type="button" id="pick-vault">选择文件夹</button>
           <span id="vault-name" class="hint"></span>
           <div class="hint">授权后草稿直接写入该文件夹,截图存 attachments/ 子目录;不设置则导出时下载到「下载目录/video-notes/」。侧边栏导出页可临时切换到其他文件夹。</div>
         </div>
@@ -210,7 +177,7 @@
         <div class="field">
           <label>模板管理</label>
           <div id="tpl-list"></div>
-          <button type="button" id="tpl-new" class="vault-btn">新建模板</button>
+          <button type="button" id="tpl-new">新建模板</button>
           <div class="hint">内置模板只读,可「基于此新建」改造成自定义模板;自定义模板可编辑/删除;当前默认模板不可删除,需先把默认切换为其他模板。</div>
         </div>
         <div id="tpl-editor" style="display:none">
@@ -224,11 +191,11 @@
           </div>
           <div class="field">
             <label for="tpl-prompt">提示词</label>
-            <textarea id="tpl-prompt" rows="10" style="font:12px/1.6 ui-monospace,monospace"></textarea>
+            <textarea id="tpl-prompt" rows="10"></textarea>
             <div class="hint">系统会自动在提示词后附加硬性规则:时间戳取自字幕行首 [mm:ss]、直接输出 Markdown 不加代码围栏。</div>
           </div>
-          <button type="button" id="tpl-save" class="primary" style="margin-top:0;padding:8px 20px">保存模板</button>
-          <button type="button" id="tpl-cancel" class="vault-btn">取消</button>
+          <button type="button" id="tpl-save" class="primary">保存模板</button>
+          <button type="button" id="tpl-cancel">取消</button>
         </div>
         <div class="field">
           <label>导出笔记包含内容</label>

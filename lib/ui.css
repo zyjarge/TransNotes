@@ -1,0 +1,130 @@
+/**
+ * TransNotes 设计令牌与共享组件(侧边栏 / 设置页共用)
+ * 标准:docs/UI-SPEC.md——「书房案头」浅色克制风,时间码为产品语言
+ */
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('vendor/fonts/sg-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('vendor/fonts/sg-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('vendor/fonts/jb-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('vendor/fonts/jb-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+:root {
+  --bg: #F7F7F5;
+  --surface: #FFFFFF;
+  --panel: #F0F0EE;
+  --line: #E9E9E6;
+  --line-strong: #D8D8D4;
+  --text: #1F2329;
+  --dim: #6E7580;
+  --faint: #9AA1AB;
+  --accent: #E6485D;
+  --accent-soft: rgba(230, 72, 93, 0.10);
+  --accent2: #FF9C6B;
+  --ok: #1F9D63;
+  --warn: #B7791F;
+  --err: #D9304E;
+  --font-body: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-brand: 'Space Grotesk', -apple-system, 'PingFang SC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+/* 时间码 chip:签名元素(规范 6) */
+.tc {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 6px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tc:hover { background: rgba(230, 72, 93, 0.18); }
+
+/* 声波条纹:品牌区唯一性格动效(规范 8) */
+.wave { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.wave i {
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent2));
+  animation: wave-pulse 1.6s ease-in-out infinite;
+}
+.wave i:nth-child(1) { height: 40%; animation-delay: 0s; }
+.wave i:nth-child(2) { height: 90%; animation-delay: 0.15s; }
+.wave i:nth-child(3) { height: 60%; animation-delay: 0.3s; }
+.wave i:nth-child(4) { height: 100%; animation-delay: 0.45s; }
+.wave i:nth-child(5) { height: 50%; animation-delay: 0.6s; }
+@keyframes wave-pulse {
+  0%, 100% { transform: scaleY(0.55); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave i { animation: none; }
+}
+
+/* 按钮三档(规范 6) */
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 5px 12px;
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: var(--panel); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover { background: #D63D52; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.14); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

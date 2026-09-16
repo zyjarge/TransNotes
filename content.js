@@ -89,7 +89,7 @@
       '.transnotes-player-btn{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px}',
       '.transnotes-player-btn img{width:24px;height:24px;border-radius:4px;opacity:.9;pointer-events:none}',
       '.transnotes-player-btn:hover img{opacity:1}',
-      '.transnotes-player-btn.transnotes-active img{opacity:1;filter:drop-shadow(0 0 3px #3ea6ff)}',
+      '.transnotes-player-btn.transnotes-active img{opacity:1;filter:drop-shadow(0 0 3px #E6485D)}',
       '.transnotes-player-btn[aria-disabled="true"]{opacity:.5;pointer-events:none}',
       // Shorts 页无控制栏:圆形浮动按钮,挂在播放器右上角(避开顶部标题区);
       // z-index 60 压过播放器错误层 .ytp-error(44)

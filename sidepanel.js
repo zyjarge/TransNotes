@@ -721,7 +721,7 @@
     } else {
       $('title').textContent = (doc && doc.title) || '当前视频(暂无字幕缓存)';
       $('meta').textContent = doc
-        ? `${doc.site || ''} · ${doc.cues.length} 句字幕 · ${doc.route || ''}`
+        ? `${doc.site || ''} · ${doc.cues.length} 句字幕`
         : '暂无字幕缓存,正在自动抓取字幕并生成概览…';
     }
     renderCues();
