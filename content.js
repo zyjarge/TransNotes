@@ -265,6 +265,47 @@
     el.style.display = text ? 'block' : 'none';
   }
 
+  /* ---------------- 顶部 toast(自动抓字幕结果反馈) ---------------- */
+  // 挂在播放器顶部居中的细条,只展示自动抓结果(成功/失败/无字幕),不打扰用户
+  const AUTO_TOAST_ID = 'transnotes-auto-toast';
+  let autoToastTimer = null;
+  function showAutoToast(text, kind) {
+    let el = document.getElementById(AUTO_TOAST_ID);
+    const container = getPlayerContainer();
+    if (!container) return; // 播放器不在则不挂(避免污染页面其他区域)
+    if (!el) {
+      el = document.createElement('div');
+      el.id = AUTO_TOAST_ID;
+      el.style.cssText = [
+        'position:absolute', 'top:12px', 'left:50%', 'transform:translateX(-50%)',
+        'z-index:60', 'padding:6px 14px', 'border-radius:6px',
+        'font:13px/1.4 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif',
+        'box-shadow:0 1px 3px rgba(0,0,0,.18)', 'pointer-events:none',
+        'opacity:0', 'transition:opacity .2s', 'max-width:80%', 'text-align:center',
+      ].join(';');
+      container.appendChild(el);
+    }
+    // 配色:成功=中性灰底白字(不打扰);失败=浅红底(给出信号但不抢眼);无字幕=灰底
+    if (kind === 'error') {
+      el.style.background = 'rgba(217,48,78,.92)';
+      el.style.color = '#fff';
+    } else if (kind === 'nosubs') {
+      el.style.background = 'rgba(60,64,70,.85)';
+      el.style.color = '#fff';
+    } else {
+      el.style.background = 'rgba(31,35,41,.85)';
+      el.style.color = '#fff';
+    }
+    el.textContent = text;
+    // 强制 reflow 让 transition 生效
+    void el.offsetWidth;
+    el.style.opacity = '1';
+    clearTimeout(autoToastTimer);
+    autoToastTimer = setTimeout(() => {
+      if (el) el.style.opacity = '0';
+    }, kind === 'ok' ? 1800 : 3500);
+  }
+
   function setState(next) {
     state = next;
     const btn = document.querySelector('.' + BTN_CLASS);
@@ -296,6 +337,9 @@
       return;
     }
     playerInfo = data.data;
+    // 后台静默预抓字幕:用户停留超过 1.5 秒的视频才值得抓(快速划过的不浪费请求),
+    // 抓取成功后写入共享缓存,笔记/概览/配音/问答全部零成本复用
+    scheduleAutoFetchSubs();
   });
 
   /* ---------------- 字幕抓取 ---------------- */
@@ -356,6 +400,84 @@
       }
     }
     return { cues: parseToCues(json), skipTranslate: false, route: '英文 + DeepSeek' };
+  }
+
+  /* ---------------- 自动抓字幕(playerInfo 就绪后延后触发) ---------------- */
+  // 设计要点:
+  // - 静默:不弹加载浮层、不暂停视频、不抢焦点,只用顶部 toast 反馈一次
+  // - 延后:用户停留超过 1.5 秒的视频才抓(SPA 快速划过的不浪费请求)
+  // - 去重:同会话同视频只抓一次;缓存命中由 Background 短路,但我们仍读 cache
+  //   做一次本地短路,避免无谓地向 Background 发空消息
+  // - 不与配音冲突:用户已开配音时让主动流程接管,本函数直接返回
+  const AUTO_FETCH_DELAY_MS = 1500;
+  const autoFetchedVideoIds = new Set();  // 本会话内已发起过自动抓的视频 id
+  let autoFetchTimer = null;
+
+  function scheduleAutoFetchSubs() {
+    if (!playerInfo || !playerInfo.videoId) return;
+    const videoId = playerInfo.videoId;
+    if (autoFetchedVideoIds.has(videoId)) return;
+    autoFetchedVideoIds.add(videoId);
+    clearTimeout(autoFetchTimer);
+    autoFetchTimer = setTimeout(() => {
+      runAutoFetchSubs(videoId).catch(() => {});
+    }, AUTO_FETCH_DELAY_MS);
+  }
+
+  async function runAutoFetchSubs(videoId) {
+    // 1) 本地缓存短路:已经抓过就不抓
+    const cacheKey = 'yt:' + videoId;
+    let cached = null;
+    try {
+      cached = await VdcCache.getSubtitles(cacheKey);
+    } catch (e) {
+      /* storage 异常,继续走抓取路径,失败时由 Background 兜底 */
+    }
+    if (cached && Array.isArray(cached.cues) && cached.cues.length) {
+      console.log('[transnotes] 自动抓字幕:命中缓存', cacheKey, cached.cues.length, '句');
+      return;
+    }
+    // 2) 用户已经主动开配音:让主动流程负责,自动抓不重复
+    if (state === 'loading' || state === 'active') return;
+    // 3) 静默抓取
+    try {
+      const sub = await fetchSubtitles();
+      // 抓取期间页面可能已切换(SPA):核对一次 videoId,陈旧结果丢弃
+      const pageId = getCurrentVideoId();
+      if (pageId && pageId !== videoId) return;
+      await DubCommon.safeSendMessage({
+        type: 'SUBS_AUTO_READY',
+        videoId,
+        videoKey: cacheKey,
+        site: 'youtube',
+        title: (playerInfo && playerInfo.title) || document.title || '',
+        url: location.href,
+        route: sub.route,
+        skipTranslate: sub.skipTranslate,
+        cues: sub.cues.map((c) => ({
+          index: c.index, start: c.start, end: c.end, text: c.text, zh: c.zh,
+        })),
+      });
+      console.log('[transnotes] 自动抓字幕完成:', cacheKey, sub.cues.length, '句');
+      showAutoToast(`字幕已就绪 · ${sub.cues.length} 句`, 'ok');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      // 无字幕视频静默告知一次(用户看到提示就知道这个视频不能生成笔记)
+      if (/无可用字幕|未获取到播放器数据|请刷新/.test(msg)) {
+        showAutoToast('该视频暂无可用字幕', 'nosubs');
+      } else {
+        // 其他失败(如 pot 接口异常、网络):也给一次提示,但不打断
+        console.warn('[transnotes] 自动抓字幕失败:', msg);
+        showAutoToast('字幕准备失败,请手动开启配音重试', 'error');
+      }
+    }
+  }
+
+  // SPA 切视频:清空去重集合并触发新视频的自动抓
+  function resetAutoFetch() {
+    autoFetchedVideoIds.clear();
+    clearTimeout(autoFetchTimer);
+    autoFetchTimer = null;
   }
 
   /**
@@ -981,6 +1103,7 @@
       setStatus('');
     }
     playerInfo = null;
+    resetAutoFetch();   // 切换视频后允许重新触发自动抓
     setTimeout(ensureInjected, 800);
   });
 })();

@@ -217,6 +217,44 @@
     el.style.display = text ? 'block' : 'none';
   }
 
+  /* ---------------- 顶部 toast(自动抓字幕结果反馈) ---------------- */
+  // B 站播放器容器为 .bpx-player-video-wrap / .bilibili-player-video;这里直接
+  // 挂到 body(B 站原生播放器难以稳定定位顶部居中,body 顶部更可靠)
+  const BILI_AUTO_TOAST_ID = 'transnotes-auto-toast';
+  let biliAutoToastTimer = null;
+  function showAutoToast(text, kind) {
+    let el = document.getElementById(BILI_AUTO_TOAST_ID);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = BILI_AUTO_TOAST_ID;
+      el.style.cssText = [
+        'position:fixed', 'top:24px', 'left:50%', 'transform:translateX(-50%)',
+        'z-index:99999', 'padding:6px 14px', 'border-radius:6px',
+        'font:13px/1.4 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif',
+        'box-shadow:0 1px 3px rgba(0,0,0,.18)', 'pointer-events:none',
+        'opacity:0', 'transition:opacity .2s', 'max-width:80%', 'text-align:center',
+      ].join(';');
+      document.body.appendChild(el);
+    }
+    if (kind === 'error') {
+      el.style.background = 'rgba(217,48,78,.92)';
+      el.style.color = '#fff';
+    } else if (kind === 'nosubs') {
+      el.style.background = 'rgba(60,64,70,.85)';
+      el.style.color = '#fff';
+    } else {
+      el.style.background = 'rgba(31,35,41,.85)';
+      el.style.color = '#fff';
+    }
+    el.textContent = text;
+    void el.offsetWidth;
+    el.style.opacity = '1';
+    clearTimeout(biliAutoToastTimer);
+    biliAutoToastTimer = setTimeout(() => {
+      if (el) el.style.opacity = '0';
+    }, kind === 'ok' ? 1800 : 3500);
+  }
+
   function setState(next) {
     state = next;
     const btn = document.querySelector('.' + BTN_CLASS);
@@ -347,6 +385,78 @@
     // 按句尾标点把碎片重组为完整句子(修复半句话被单独合成的割裂感)
     return DubCommon.mergeIntoSentences(parsed)
       .map((c, i) => ({ index: i, start: c.start, end: c.end, text: c.text }));
+  }
+
+  /* ---------------- 自动抓字幕(分 P 巡检触发) ---------------- */
+  // 设计要点(与 YouTube 端对齐):
+  // - 静默:不弹加载浮层、不暂停视频、不抢焦点,只用顶部 toast 反馈一次
+  // - 延后:页面停留/视频加载后超过 1.5 秒才抓(避免快速划过浪费请求)
+  // - 去重:本会话同 videoKey 只抓一次;SPA 切视频后由 ensureInjected 清空并重抓
+  // - 不与配音冲突:用户已开配音时让主动流程接管
+  const AUTO_FETCH_DELAY_MS = 1500;
+  const autoFetchedVideoKeys = new Set();
+  let autoFetchTimer = null;
+
+  function scheduleAutoFetchSubs(videoKey) {
+    if (!videoKey) return;
+    if (autoFetchedVideoKeys.has(videoKey)) return;
+    autoFetchedVideoKeys.add(videoKey);
+    clearTimeout(autoFetchTimer);
+    autoFetchTimer = setTimeout(() => {
+      runAutoFetchSubs(videoKey).catch(() => {});
+    }, AUTO_FETCH_DELAY_MS);
+  }
+
+  async function runAutoFetchSubs(videoKey) {
+    // 1) 本地缓存短路
+    let cached = null;
+    try {
+      cached = await VdcCache.getSubtitles(videoKey);
+    } catch (e) {
+      /* storage 异常继续走抓取 */
+    }
+    if (cached && Array.isArray(cached.cues) && cached.cues.length) {
+      console.log('[transnotes] 自动抓字幕:命中缓存', videoKey, cached.cues.length, '句');
+      return;
+    }
+    // 2) 用户已开配音则跳过
+    if (state === 'loading' || state === 'active') return;
+    // 3) 静默抓取
+    try {
+      const list = await fetchSubtitles();
+      // 抓取期间切换了分 P / 视频:丢弃陈旧结果
+      const vkNow = getVideoKey();
+      if (!vkNow || vkNow.key !== videoKey) return;
+      await DubCommon.safeSendMessage({
+        type: 'SUBS_AUTO_READY',
+        videoId: videoKey,
+        videoKey,
+        site: 'bilibili',
+        title: (playerData && playerData.title) || document.title || '',
+        url: location.href,
+        route: 'B 站中文字幕',
+        skipTranslate: true,
+        cues: list.map((c) => ({
+          index: c.index, start: c.start, end: c.end, text: c.text, zh: c.text,
+        })),
+      });
+      console.log('[transnotes] 自动抓字幕完成:', videoKey, list.length, '句');
+      showAutoToast(`字幕已就绪 · ${list.length} 句`, 'ok');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      if (/无可用中文字幕|需要登录|不在视频页/.test(msg)) {
+        showAutoToast('该视频暂无可用字幕', 'nosubs');
+      } else {
+        console.warn('[transnotes] 自动抓字幕失败:', msg);
+        showAutoToast('字幕准备失败,请手动开启配音重试', 'error');
+      }
+    }
+  }
+
+  function resetAutoFetch() {
+    autoFetchedVideoKeys.clear();
+    clearTimeout(autoFetchTimer);
+    autoFetchTimer = null;
   }
 
   /** 配音期间隐藏 B 站原生字幕面板(用户可能开着 CC) */
@@ -677,10 +787,13 @@
         setStatus('');
       }
       playerData = null;
+      resetAutoFetch();   // 切换后允许重新触发自动抓
     }
     lastVideoKey = vk.key;
     injectButton();
     injectCaptureButton();
+    // 进入新视频/分 P 后,后台静默预抓字幕(去重由 scheduleAutoFetchSubs 内部处理)
+    scheduleAutoFetchSubs(vk.key);
   }
   ensureInjected();
   patrolTimer = setInterval(ensureInjected, 2000);

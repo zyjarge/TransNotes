@@ -784,6 +784,36 @@ async function handleAskTutor(msg) {
   }
 }
 
+/**
+ * 仅写入字幕到共享缓存(不启动 TTS 管线),用于 Content Script 在后台静默
+ * 预抓字幕:打开视频后自动抓一次,后续笔记/概览/配音/问答均直接复用缓存。
+ * 视频已存在缓存时由 Content Script 端短路,本函数不做重复检查。
+ */
+async function handleAutoSubs(msg) {
+  const { videoKey, site, videoId, title, url, route, skipTranslate, cues } = msg;
+  if (!videoKey || !Array.isArray(cues) || !cues.length) {
+    return { ok: false, error: '参数缺失' };
+  }
+  try {
+    await VdcCache.saveSubtitles(videoKey, {
+      site: site || '',
+      videoId,
+      title: title || '',
+      url: url || '',
+      route: route || '',
+      skipTranslate: !!skipTranslate,
+    }, cues.map((c) => {
+      const item = { index: c.index, start: c.start, end: c.end, text: c.text };
+      if (skipTranslate && (c.zh || c.text)) item.zh = c.zh || c.text;
+      return item;
+    }));
+    return { ok: true, cues: cues.length };
+  } catch (e) {
+    console.warn('[transnotes] 自动字幕缓存写入失败:', e);
+    return { ok: false, error: e.message };
+  }
+}
+
 /* ---------------- 消息路由 ---------------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
@@ -792,6 +822,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleStart(msg, sender);
       case 'DUB_STOP':
         return handleStop(msg);
+      case 'SUBS_AUTO_READY':
+        return await handleAutoSubs(msg);
       case 'BILI_FETCH':
         return await handleBiliFetch(msg);
       case 'BILI_PLAYER_V2':
