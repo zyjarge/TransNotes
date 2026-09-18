@@ -767,18 +767,37 @@ async function handleGenAutoNote(msg) {
 
 /**
  * 助教提问:组装上下文(标题+概览+前后字幕+近期问答)调文本模型,
- * 问答持久化(ask:{videoKey}),导出草稿时并入「助教问答」章节
+ * 问答持久化(ask:{videoKey}),导出草稿时并入「助教问答」章节。
+ * msg.image 为提问时刻的视频画面截图(dataURL):视觉模型带图回答;
+ * 服务器拒绝图片(4xx)时标记该模型不支持视觉并自动纯文本重试(degraded)
  */
 async function handleAskTutor(msg) {
   try {
     const options = await getOptions();
-    const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, {
+    const ai = {
       baseUrl: options.translateBaseUrl,
       apiKey: options.translateApiKey,
       model: options.translateModel,
       disableThinking: options.disableThinking,
-    });
-    return { ok: true, qa };
+    };
+    let image = msg.image || null;
+    // 视觉能力探测结果按模型名缓存:已知不支持图的模型直接纯文本
+    const capKey = 'visioncap:' + (ai.model || 'deepseek-chat');
+    const stored = await chrome.storage.local.get(capKey);
+    if (stored[capKey] === 'no') image = null;
+    try {
+      const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, { image });
+      return { ok: true, qa };
+    } catch (e) {
+      const errMsg = String((e && e.message) || e);
+      // 带图被拒(4xx 客户端错误):标记该模型不支持视觉,纯文本重试一次
+      if (image && /AI 接口返回 4\d\d/.test(errMsg)) {
+        await chrome.storage.local.set({ [capKey]: 'no' }).catch(() => {});
+        const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, {});
+        return { ok: true, qa, degraded: true };
+      }
+      throw e;
+    }
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
   }

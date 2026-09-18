@@ -549,6 +549,18 @@
       a.className = 'qa-a';
       MdRender.render(a, qa.answer || '', { onTimestamp: seekTo }); // 助教回答是 Markdown(含表格/公式)
       div.appendChild(q);
+      // 提问时刻的视频画面(助教带图提问时存档):点击放大预览
+      if (qa.shot) {
+        const img = document.createElement('img');
+        img.className = 'qa-shot';
+        img.alt = '提问时的画面';
+        img.title = '点击放大预览';
+        VdcCache.getShot(qa.shot).then((u) => { if (u) img.src = u; });
+        img.addEventListener('click', () => {
+          if (img.src && globalThis.DubShotEdit) DubShotEdit.view({ dataUrl: img.src });
+        });
+        div.appendChild(img);
+      }
       div.appendChild(a);
       wrap.appendChild(div);
     }
@@ -572,10 +584,18 @@
         const timeResp = await chrome.tabs.sendMessage(currentTabId, { type: 'VDC_GET_TIME' });
         if (timeResp && timeResp.ok && typeof timeResp.t === 'number') t = timeResp.t;
       } catch (e) { /* 页面脚本未注入 */ }
+      // 自动携带提问时刻的视频画面截图(视觉模型可用时上下文更完整;
+      // 模型不支持图片时 Background 自动降级为纯文本)
+      let image = null;
+      try {
+        const fr = await chrome.tabs.sendMessage(currentTabId, { type: 'CAPTURE_FRAME' });
+        if (fr && fr.ok && fr.dataUrl) image = fr.dataUrl;
+      } catch (e) { /* 截图不可用:纯文本提问 */ }
       const resp = await chrome.runtime.sendMessage({
-        type: 'ASK_TUTOR', videoKey: currentKey, question, t,
+        type: 'ASK_TUTOR', videoKey: currentKey, question, t, image,
       });
       if (!resp || !resp.ok) throw new Error((resp && resp.error) || '提问失败');
+      if (resp.degraded) setStatus('当前模型不支持图片输入,已按字幕文本回答');
       input.value = '';
       await renderQA();
     } catch (e) {

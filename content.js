@@ -1072,6 +1072,27 @@
     sendResponse({ ok: true, t: v ? v.currentTime || 0 : 0 });
   });
 
+  // 截取当前视频画面(助教带图提问):经 Background captureVisibleTab 截取后
+  // 裁剪到视频区域并压缩(≤1280 宽 jpeg)
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'CAPTURE_FRAME') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        const resp = await chrome.runtime.sendMessage({ type: 'CAPTURE_SHOT' });
+        if (!resp || !resp.ok || !resp.dataUrl) {
+          throw new Error((resp && resp.error) || '截图失败');
+        }
+        const v = getVideoElement();
+        const dataUrl = await DubCommon.cropToElement(resp.dataUrl, v);
+        return { ok: true, dataUrl };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
+
   // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;
