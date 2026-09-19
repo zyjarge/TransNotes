@@ -42,6 +42,7 @@
         "lib/dubcommon.js",
         "lib/cache.js",
         "lib/shotedit.js",
+        "lib/thumbs.js",
         "capture.js",
         "content.js"
       ],
@@ -56,6 +57,7 @@
         "lib/dubcommon.js",
         "lib/cache.js",
         "lib/shotedit.js",
+        "lib/thumbs.js",
         "capture.js",
         "bilibili.js"
       ],

@@ -182,7 +182,33 @@
     }
   });
 
-  /* ---------------- 概览视图 ---------------- */
+  /* ---------------- 概览视图(v2:概要 + 章节预览图) ---------------- */
+
+  /** 懒加载章节预览图:先发 GET_THUMBS 取缺的,返回实际补齐的数量 */
+  async function fetchChapterThumbs(chapters) {
+    if (!globalThis.VdcThumbs || currentTabId == null || !chapters.length) return 0;
+    const want = chapters
+      .map((ch) => Math.round(ch.timestampSeconds || 0))
+      .filter((t, i, a) => a.indexOf(t) === i);
+    const missing = [];
+    for (const t of want) {
+      if (!(await VdcThumbs.getThumb(currentKey, t))) missing.push(t);
+    }
+    if (!missing.length) return 0;
+    let saved = 0;
+    try {
+      const resp = await chrome.tabs.sendMessage(currentTabId, {
+        type: 'GET_THUMBS', timestamps: missing,
+      });
+      if (resp && resp.ok && resp.thumbs) {
+        for (const [t, dataUrl] of Object.entries(resp.thumbs)) {
+          await VdcThumbs.saveThumb(currentKey, +t, dataUrl);
+          saved++;
+        }
+      }
+    } catch (e) { /* 预览图不可用:占位显示,不阻塞概览 */ }
+    return saved;
+  }
 
   async function renderOverview() {
     const wrap = $('overview');
@@ -192,49 +218,75 @@
       wrap.innerHTML = '<div class="empty">概览会自动生成;也可点上方按钮按当前粒度设置重新生成</div>';
       return;
     }
+    // 概要卡片:第三人称连贯概要,锚点可点击跳回视频
+    if (ov.summary) {
+      const card = document.createElement('div');
+      card.className = 'summary-card';
+      const label = document.createElement('div');
+      label.className = 'summary-label';
+      label.textContent = '概要';
+      const body = document.createElement('div');
+      body.className = 'summary-body';
+      card.appendChild(label);
+      card.appendChild(body);
+      wrap.appendChild(card);
+      MdRender.render(body, ov.summary, { onTimestamp: seekTo });
+    }
     if (ov.chapters && ov.chapters.length) {
-      const h = document.createElement('h1');
-      h.style.fontSize = '13px';
-      h.style.color = '#555';
+      const h = document.createElement('div');
+      h.className = 'section-label';
       h.textContent = '章节';
       wrap.appendChild(h);
       for (const ch of ov.chapters) {
-        const div = document.createElement('div');
-        div.className = 'chapter';
-        const t = document.createElement('span');
-        t.className = 't';
-        t.textContent = (ch.timestamp || '') + ' ';
-        const ct = document.createElement('span');
-        ct.className = 'ct';
-        ct.textContent = ch.title || '';
-        const cs = document.createElement('div');
-        cs.className = 'cs';
-        cs.textContent = ch.summary || '';
-        div.appendChild(t);
-        div.appendChild(ct);
-        div.appendChild(cs);
-        div.addEventListener('click', () => seekTo(ch.timestampSeconds));
-        wrap.appendChild(div);
+        wrap.appendChild(buildChapterCard(ch));
       }
+      // 预览图补齐后才重渲染;一张都没拿到(视频无预览图)时保持占位,不重渲染
+      fetchChapterThumbs(ov.chapters).then((saved) => {
+        if (saved > 0) renderOverview();
+      });
     }
-    if (ov.keyQuotes && ov.keyQuotes.length) {
-      const h = document.createElement('h1');
-      h.style.fontSize = '13px';
-      h.style.color = '#555';
-      h.textContent = '关键引述';
-      wrap.appendChild(h);
-      for (const q of ov.keyQuotes) {
-        const div = document.createElement('div');
-        div.className = 'quote-item';
-        div.textContent = q.quote || '';
-        const t = document.createElement('span');
-        t.className = 't';
-        t.textContent = ' ' + (q.timestamp || '');
-        t.addEventListener('click', () => seekTo(q.timestampSeconds));
-        div.appendChild(t);
-        wrap.appendChild(div);
-      }
+  }
+
+  /** 章节卡:左缩略图(16:9),右标题 + 时间码 chip + 摘要;整卡点击跳回视频 */
+  function buildChapterCard(ch) {
+    const card = document.createElement('div');
+    card.className = 'chapter-card';
+    card.addEventListener('click', () => seekTo(ch.timestampSeconds));
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'ch-thumb';
+    const chip = document.createElement('span');
+    chip.className = 't';
+    chip.textContent = ch.timestamp || '0:00';
+    thumbWrap.appendChild(chip);
+    // 有缓存的预览图则替换占位
+    if (globalThis.VdcThumbs && currentKey) {
+      VdcThumbs.getThumb(currentKey, Math.round(ch.timestampSeconds || 0)).then((dataUrl) => {
+        if (!dataUrl) return;
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = ch.title || '';
+        img.title = '点击放大预览';
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (globalThis.DubShotEdit) DubShotEdit.view({ dataUrl });
+        });
+        thumbWrap.innerHTML = '';
+        thumbWrap.appendChild(img);
+      });
     }
+    const info = document.createElement('div');
+    info.className = 'ch-info';
+    const title = document.createElement('div');
+    title.className = 'ch-title';
+    title.textContent = ch.title || '';
+    const summary = document.createElement('div');
+    summary.className = 'cs';
+    summary.textContent = ch.summary || '';
+    info.appendChild(title);
+    info.appendChild(summary);
+    card.appendChild(thumbWrap);
+    card.appendChild(info);
+    return card;
   }
 
   $('gen-overview').addEventListener('click', async () => {

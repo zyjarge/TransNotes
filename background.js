@@ -833,6 +833,24 @@ async function handleAutoSubs(msg) {
   }
 }
 
+/**
+ * 抓取外部图片并转 base64(章节预览图:i.ytimg.com 雪碧图、hdslb.com 雪碧图)。
+ * 页面内直接 fetch 这些域名没有 CORS 头,canvas 会污染,必须经 Background 中转。
+ */
+async function handleFetchImage(msg) {
+  try {
+    const url = String(msg.url || '');
+    if (!/^https:\/\//.test(url)) return { ok: false, error: '非法图片地址' };
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const base64 = await blobToBase64(blob);
+    return { ok: true, base64, mime: blob.type || 'image/jpeg' };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
 /* ---------------- 消息路由 ---------------- */
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
@@ -859,6 +877,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleGenAutoNote(msg);
       case 'ASK_TUTOR':
         return await handleAskTutor(msg);
+      case 'FETCH_IMAGE':
+        return await handleFetchImage(msg);
       case 'OPEN_PANEL':
         return await handleOpenPanel(sender);
       default:

@@ -1093,6 +1093,42 @@
     return true; // 异步响应
   });
 
+  // 章节预览图:按时间戳从 YouTube storyboard 雪碧图裁帧(概览页用,不打扰播放)
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'GET_THUMBS') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        if (!globalThis.VdcThumbs) throw new Error('预览图组件未加载');
+        const sb = VdcThumbs.parseStoryboardSpec(playerInfo && playerInfo.storyboards);
+        if (!sb) throw new Error('该视频无预览图数据');
+        const timestamps = Array.isArray(msg.timestamps) ? msg.timestamps : [];
+        const frames = timestamps.map((t) => ({ t: Math.round(t), frame: VdcThumbs.frameAt(sb, t) }));
+        // 按雪碧图 URL 去重抓取(经 Background 中转,避免 canvas 跨域污染)
+        const byUrl = new Map();
+        for (const f of frames) {
+          if (!byUrl.has(f.frame.url)) byUrl.set(f.frame.url, []);
+          byUrl.get(f.frame.url).push(f);
+        }
+        const out = {};
+        for (const [url, list] of byUrl) {
+          const resp = await chrome.runtime.sendMessage({ type: 'FETCH_IMAGE', url });
+          if (!resp || !resp.ok) continue;
+          const dataUrl = `data:${resp.mime || 'image/jpeg'};base64,${resp.base64}`;
+          for (const f of list) {
+            try {
+              out[f.t] = await VdcThumbs.cropImage(dataUrl, f.frame.x, f.frame.y, f.frame.w, f.frame.h);
+            } catch (e) { /* 单帧失败跳过 */ }
+          }
+        }
+        return { ok: true, thumbs: out };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
+
   // 配音开关快捷键:Ctrl+Shift+D(输入框内与捕捉浮层开着时不触发)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'KeyD' || !e.shiftKey || !(e.ctrlKey || e.metaKey)) return;

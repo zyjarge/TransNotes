@@ -368,6 +368,8 @@
         bvid: vk.bvid,
         page: vk.page,
         cid: pageInfo.cid,
+        aid: view.data.aid,
+        duration: view.data.duration || 0,
         title: (view.data.title || '') +
           (pages.length > 1 ? ` P${vk.page} ${pageInfo.part || ''}`.trimEnd() : ''),
         subtitleUrl: track.subtitle_url.indexOf('//') === 0 ? 'https:' + track.subtitle_url : track.subtitle_url,
@@ -846,6 +848,59 @@
     e.preventDefault();
     onToggleClick();
   }, true);
+
+  // 章节预览图:B 站 videoshot 雪碧图裁帧(概览页用,不打扰播放)
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'GET_THUMBS') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        if (!globalThis.VdcThumbs) throw new Error('预览图组件未加载');
+        // aid/cid:playerData 有则复用,否则 view 接口现取
+        let aid = playerData && playerData.aid;
+        let cid = playerData && playerData.cid;
+        let duration = (playerData && playerData.duration) || 0;
+        if (!aid || !cid) {
+          const vk = getVideoKey();
+          if (!vk) throw new Error('不在视频页');
+          const view = await biliFetchJson(`https://api.bilibili.com/x/web-interface/view?bvid=${vk.bvid}`);
+          if (view.code !== 0 || !view.data) throw new Error('视频信息获取失败');
+          const pageInfo = (view.data.pages || []).find((p) => p.page === vk.page) || (view.data.pages || [])[0];
+          aid = view.data.aid;
+          cid = pageInfo && pageInfo.cid;
+          duration = view.data.duration || 0;
+        }
+        if (!aid || !cid) throw new Error('缺少视频参数');
+        const resp = await biliFetchJson(`https://api.bilibili.com/x/player/videoshot?aid=${aid}&cid=${cid}`);
+        if (resp.code !== 0 || !resp.data) throw new Error('预览图接口失败');
+        const pv = VdcThumbs.parsePvdata(resp.data.pvdata || resp.data, duration);
+        if (!pv) throw new Error('该视频无预览图数据');
+        const timestamps = Array.isArray(msg.timestamps) ? msg.timestamps : [];
+        const frames = timestamps.map((t) => ({ t: Math.round(t), frame: pv.frameAt(t) }));
+        // 按雪碧图 URL 去重抓取(经 Background 中转,避免 canvas 跨域污染)
+        const byUrl = new Map();
+        for (const f of frames) {
+          if (!byUrl.has(f.frame.url)) byUrl.set(f.frame.url, []);
+          byUrl.get(f.frame.url).push(f);
+        }
+        const out = {};
+        for (const [url, list] of byUrl) {
+          const imgResp = await chrome.runtime.sendMessage({ type: 'FETCH_IMAGE', url });
+          if (!imgResp || !imgResp.ok) continue;
+          const dataUrl = `data:${imgResp.mime || 'image/jpeg'};base64,${imgResp.base64}`;
+          for (const f of list) {
+            try {
+              out[f.t] = await VdcThumbs.cropImage(dataUrl, f.frame.x, f.frame.y, f.frame.w, f.frame.h);
+            } catch (e) { /* 单帧失败跳过 */ }
+          }
+        }
+        return { ok: true, thumbs: out };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
 
   // 配音进行中向侧边栏广播播放进度(字幕视图联动高亮)
   setInterval(() => {

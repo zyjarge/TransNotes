@@ -105,6 +105,10 @@
       data.captions &&
       data.captions.playerCaptionsTracklistRenderer &&
       data.captions.playerCaptionsTracklistRenderer.captionTracks;
+    const storyboards =
+      data.storyboards &&
+      data.storyboards.playerStoryboardSpecRenderer &&
+      data.storyboards.playerStoryboardSpecRenderer.spec;
     window.postMessage(
       {
         source: SOURCE,
@@ -113,6 +117,7 @@
           videoId: data.videoDetails.videoId,
           title: data.videoDetails.title || '',
           captionTracks: Array.isArray(tracks) ? tracks : [],
+          storyboards: storyboards || '', // 章节预览图雪碧图规格(概览页用)
         },
       },
       '*'
