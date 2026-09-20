@@ -144,3 +144,11 @@
 
 - 仅供个人学习与研究使用;API Key 仅存本机 `chrome.storage.local`
 - 不下载、不分发 YouTube/B 站音视频内容;字幕数据仅在浏览器内实时处理
+
+## 支持这个项目
+
+TransNotes 是一个业余时间的开源项目。如果它真的帮你把看不懂的课程变成了听得懂、记得住的知识,欢迎请作者喝杯咖啡——你的支持是我持续打磨它的动力。也欢迎 Star、提 Issue 和分享给你的朋友。
+
+<p align="center">
+  <img src="icons/wechat_qr.jpg" width="220" alt="微信赞赏码">
+</p>
