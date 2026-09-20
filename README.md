@@ -150,5 +150,5 @@
 TransNotes 是一个业余时间的开源项目。如果它真的帮你把看不懂的课程变成了听得懂、记得住的知识,欢迎请作者喝杯咖啡——你的支持是我持续打磨它的动力。也欢迎 Star、提 Issue 和分享给你的朋友。
 
 <p align="center">
-  <img src="icons/wechat_qr.jpg" width="220" alt="微信赞赏码">
+  <img src="icons/wechat_qr.jpg" width="320" alt="赞赏海报(微信 / 支付宝)">
 </p>
