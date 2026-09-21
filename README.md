@@ -79,35 +79,6 @@
 - **字幕抓取**:YouTube 对 timedtext 接口强制 PO Token 校验,插件借播放器自身携带 pot 的字幕请求获取数据;B 站走 wbi 签名接口(需登录态)
 - **共享缓存**:字幕译文、音频、笔记、截图全部本地持久化;同一视频第二次打开,配音近乎即时,笔记与双语视图零 AI 成本
 
-## 仓库结构
-
-```
-├── PRD.md                 # 产品需求文档(MVP 范围、技术架构、验收标准)
-├── docs/UI-SPEC.md        # UI 设计规范(提示词版,界面改动的唯一标准)
-├── manifest.json          # MV3 清单(权限最小化)
-├── background.js          # Service Worker:流式翻译 + TTS 合并调度 + 笔记/概览/截图消息 + 持久缓存
-├── content.js             # YouTube Content Script:播放器按钮、字幕抓取、捕捉入口、进度广播
-├── injected.js            # YouTube 主世界脚本:读取 ytInitialPlayerResponse、hook 带 pot 的字幕请求
-├── bilibili.js            # B 站 Content Script:字幕 API(wbi 签名)、ai-zh 直通、分 P 巡检
-├── capture.js             # 捕捉浮层(两站共用):键盘隔离、截图裁剪;草稿生成提示条
-├── sidepanel.html/js      # 笔记侧边栏:字幕/概览/笔记/笔记导出四页签
-├── options.html/js        # 设置页(API Key、音色语速、摘要粒度、导出内容)
-├── icons/                 # 插件图标
-└── lib/
-    ├── subtitles.js       # YouTube timedtext JSON3 解析、片段合并、轨道选择
-    ├── translate.js       # OpenAI 兼容翻译封装(分块、按行对应)
-    ├── minimax_tts.js     # MiniMax TTS 封装(hex 解码、限流自适应队列、多句合并+句级字幕)
-    ├── syncplayer.js      # 时间戳对齐播放引擎(双向调速/尾部对齐/缓冲等待,两站共用)
-    ├── shotedit.js        # 截图预览灯箱 + 标记编辑器(画笔/矩形/箭头/文字,浮层/侧边栏共用)
-    ├── cache.js           # 共享缓存层:字幕译文/笔记/截图
-    ├── notes.js           # 笔记整合:AI 概览(粒度可配)+ Markdown 草稿组装
-    ├── tutor.js           # AI 助教:上下文组装(概览+前后字幕+问答历史)+ 提问
-    ├── exporter.js        # Obsidian 导出:File System Access 直写 vault,退化为下载
-    ├── dubcommon.js       # 站点无关公共件(base64/WAV 编码、合并块切分、安全消息)
-    ├── ui.css             # 设计令牌与共享组件(规范见 docs/UI-SPEC.md)
-    ├── vendor/            # 本地第三方库(marked/DOMPurify/KaTeX、Space Grotesk/JetBrains Mono 字体)
-    └── wbi.js             # B 站 wbi 签名(内置 MD5)
-```
 
 ## 已知限制
 
@@ -128,17 +99,6 @@
 
 总成本极低(每次观看约几分钱量级),主要瓶颈是限流而非费用。以官方控制台计费为准。
 
-## 自测说明
-
-- 测试视频:任意 10 分钟以上、带英文字幕的 YouTube 演讲/课程视频(如 TED 官方频道)
-- 验证场景:
-  1. 点击按钮后视频立即暂停并显示加载浮层(转圈+进度),首批 3 句缓冲就绪后自动续播开口,原声静音
-  2. 暂停 → 恢复、拖动进度条 → 2 秒内重新对齐
-  3. 倍速 1.5x / 2x 下配音跟随(用户调速后插件不再干预视频速率)
-  4. 加载期间再次点击按钮可取消加载并恢复原声续播;播放中缓冲同样显示加载浮层
-  5. 无字幕视频提示「该视频无可用英文字幕」且不报错
-  6. 连续播放 10 分钟无漏播/重复/乱序(控制台无未捕获异常)
-  7. 同一视频第二次点击:命中缓存,几乎立即开口
 
 ## 合规说明
 
