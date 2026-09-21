@@ -1,6 +1,6 @@
 <p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
 
-# TransNotes — 视频中文配音 + 学习笔记
+# TransNotes — 把看不懂的课程，变成听得懂、记得住的知识
 
 > 本项目灵感来源于 <https://github.com/zarazhangrui/youtube-digest>,在其基础上进行了功能升级。
 
