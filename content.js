@@ -123,11 +123,9 @@
       '.transnotes-loading-label{font-weight:600;white-space:nowrap}',
       '.transnotes-loading-progress{color:#9AA1AB;font-size:12px;white-space:nowrap;',
       'overflow:hidden;text-overflow:ellipsis}',
-      '.transnotes-loading-wave{display:inline-flex;align-items:center;gap:3px;height:20px;flex:none;margin-left:2px}',
-      // 声波条不设 CSS 动画:个别浏览器环境(减弱动态效果/省电模式/强制暗色等)
-      // 会停掉 CSS 动画导致声波静止,改由 JS(rAF)逐帧驱动,见 startWave()
-      '.transnotes-loading-wave i{width:4px;height:100%;border-radius:2px;',
-      'background:linear-gradient(180deg,#E6485D,#FF9C6B);transform-origin:center}',
+      // 声波加载图:GIF 内置动画,不依赖 CSS/JS 动画,避开减弱动态效果等坑
+      '.transnotes-loading-wave{display:inline-flex;align-items:center;height:24px;flex:none;margin-left:2px}',
+      '.transnotes-loading-wave img{height:24px;width:auto;display:block}',
     ].join('\n');
     root.appendChild(style);
     return true;
@@ -257,61 +255,26 @@
     if (!el) {
       el = document.createElement('div');
       el.id = LOADING_ID;
-      const bars = '<i></i>'.repeat(16);
       el.innerHTML =
         '<div class="transnotes-loading-pill">' +
         '<span class="transnotes-loading-dot"></span>' +
         '<span class="transnotes-loading-label">AI 中文配音中</span>' +
         '<span class="transnotes-loading-progress"></span>' +
-        '<span class="transnotes-loading-wave">' + bars + '</span>' +
+        '<img class="transnotes-loading-wave" src="' + chrome.runtime.getURL('icons/loading-wave.gif') + '" alt="">' +
         '</div>';
     }
     // 挂到当前激活播放器(Shorts 换 reel 时跟随搬家);播放器未就绪则暂不显示
     if (!mountInPlayer(el)) return;
     el.querySelector('.transnotes-loading-progress').textContent = text || '';
     el.style.display = 'flex';
-    startWave(el);
   }
 
   function hideLoadingOverlay() {
-    stopWave();
     const el = document.getElementById(LOADING_ID);
     if (el) el.style.display = 'none';
   }
 
-  /**
-   * 声波条动画:JS(rAF)逐帧驱动 scaleY,不依赖 CSS 动画——
-   * CSS 动画在部分浏览器环境下会被停用(系统减弱动态效果、省电模式、
-   * 第三方样式干预等),而这里的 JS 上下文已被证明可用(进度文案同源更新)
-   */
-  let waveRaf = 0;
-
-  function startWave(el) {
-    if (waveRaf) return; // 已在运行,避免重复挂帧回调
-    const bars = el.querySelectorAll('.transnotes-loading-wave i');
-    if (!bars.length) return;
-    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      console.log('[transnotes] 系统开启了「减弱动态效果」,声波动画未启动');
-      return;
-    }
-    const N = bars.length, PERIOD = 1200, STEP = 75; // 与余弦相位差形成向左滚动的波
-    const t0 = performance.now();
-    const tick = (now) => {
-      const t = now - t0;
-      for (let i = 0; i < N; i++) {
-        const phase = ((t + i * STEP) % PERIOD) / PERIOD;
-        const s = 0.675 - 0.325 * Math.cos(2 * Math.PI * phase); // .35 ~ 1 平滑起伏
-        bars[i].style.transform = 'scaleY(' + s.toFixed(3) + ')';
-      }
-      waveRaf = requestAnimationFrame(tick);
-    };
-    waveRaf = requestAnimationFrame(tick);
-  }
-
-  function stopWave() {
-    if (waveRaf) cancelAnimationFrame(waveRaf);
-    waveRaf = 0;
-  }
+  // 声波动画由 GIF 内置,无需 JS 驱动;保留空占位以防后续如需重新引入 rAF 动画
 
   function setStatus(text, color) {
     const el = document.getElementById(STATUS_ID);
@@ -687,8 +650,9 @@
     if (!video) throw new Error('未找到视频播放器');
 
     // 商业插件式加载:先暂停视频并展示加载浮层,待首批语音缓冲就绪后自动续播
+    // 浮层只显示"AI 语音翻译中"+ GIF,不显示动态进度文案(保持 UI 安静)
     video.pause();
-    showLoadingOverlay('正在抓取字幕...');
+    showLoadingOverlay();
 
     const dubVideoId = playerInfo ? playerInfo.videoId : null; // fetchSubtitles 会再校验
     // 字幕缓存命中则跳过抓取(同一视频二次配音/换音色重配时秒进合成阶段);
@@ -725,7 +689,7 @@
     const routeLabel = sub.route + (sub.fromCache ? '(缓存)' : '');
     console.log('[transnotes] 字幕通道:', routeLabel, '| 共', cues.length, '句');
     setStatus(`共 ${cues.length} 句(${routeLabel}),启动流水线...`);
-    showLoadingOverlay(`共 ${cues.length} 句(${routeLabel}),语音合成中...`);
+    showLoadingOverlay();
 
     activeVideoId = dubVideoId;
     cueAudioCache = new Map();
@@ -747,7 +711,7 @@
         // 播放中缓冲(某句合成跟不上):同样给暂停一个视觉提示
         if (state !== 'active') return;
         if (buffering) {
-          showLoadingOverlay('语音合成中,缓冲等待...');
+          showLoadingOverlay();
           setStatus('正在等待语音合成(缓冲中)...', '#f90');
         } else {
           hideLoadingOverlay();
@@ -807,7 +771,7 @@
     if (target.length === 0 || ready >= target.length) {
       beginPlayback();
     } else {
-      showLoadingOverlay(`语音加载中... 首批 ${ready}/${target.length}`);
+      showLoadingOverlay('');  // 仅 GIF 动画,不再显示调试进度
     }
   }
 

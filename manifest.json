@@ -68,7 +68,8 @@
     {
       "resources": [
         "injected.js",
-        "icons/button.png"
+        "icons/button.png",
+        "icons/loading-wave.gif"
       ],
       "matches": [
         "*://www.youtube.com/*",
