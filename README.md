@@ -20,10 +20,6 @@
   <video src="https://github.com/user-attachments/assets/7e7dac80-b989-4a46-90cf-a5692c138578" width="640" controls playsinline muted preload="metadata" poster="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg"></video>
 </p>
 
-<p align="center">
-  <sub>📺 也可以在 <a href="https://www.youtube.com/watch?v=IdUvRAOk-CI">YouTube</a> 观看</sub>
-</p>
-
 一个 Chrome 扩展(MV3),把 YouTube / B 站视频变成可听、可记、可归档的学习资源:
 
 - **实时中文配音**:抓取视频字幕 → 翻译为中文(DeepSeek 等 OpenAI 兼容服务;YouTube 有中文字幕/自动翻译、B 站有 ai-zh 字幕时直通)→ MiniMax TTS 合成 → 按时间戳与原画面同步播放,原声自动静音
