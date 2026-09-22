@@ -10,3 +10,12 @@
 # 系统文件
 .DS_Store
 *.log
+
+# 文档演示视频(与扩展运行时无关,只用于 README/官网展示)
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.mkv
+*.flv
+*.webm
