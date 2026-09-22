@@ -1,15 +1,13 @@
 <p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
 
 <!--
-  本地托管的 mp4 嵌入 GitHub README(GitHub sanitizer 允许 <video> 标签):
-  视频源: docs/assets/transnotes-intro.mp4 (H.265 720p, 4 MB, faststart)
-  GitHub 会自动转码成 player-ready 流, <video> 标签可正常播放
-  - 加 playsinline 让移动端在内联播放(避免强制全屏)
-  - 加 controls 显示原生控件(进度条、音量、全屏)
-  - 静音属性让浏览器允许自动播放(部分浏览器策略要求)
+  GitHub README 不支持相对路径下的 <video> 标签(sanitizer 会过滤掉本地仓库路径)。
+  唯一可靠的方式:把 mp4 上传到 GitHub 的 user-attachments CDN(通过未公开但可用的
+  uploads.github.com/user-attachments/assets 端点),然后用返回的 https URL 引用。
+  注:asset URL 在 README 实际引用前会返回 404,引用后立即生效。
 -->
 <p align="center">
-  <video src="docs/assets/transnotes-intro.mp4" width="640" controls playsinline muted preload="metadata" poster="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg"></video>
+  <video src="https://github.com/user-attachments/assets/7e7dac80-b989-4a46-90cf-a5692c138578" width="640" controls playsinline muted preload="metadata" poster="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg"></video>
 </p>
 
 <p align="center">
