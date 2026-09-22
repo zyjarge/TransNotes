@@ -1,5 +1,16 @@
 <p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=IdUvRAOk-CI">
+    <picture>
+      <source srcset="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg">
+      <img src="https://img.youtube.com/vi/IdUvRAOk-CI/hqdefault.jpg" alt="TransNotes 说明视频" width="640">
+    </picture>
+  </a>
+  <br>
+  <sub>👆 点击查看说明视频</sub>
+</p>
+
 # TransNotes — 把看不懂的课程，变成听得懂、记得住的知识
 
 > 本项目灵感来源于 <https://github.com/zarazhangrui/youtube-digest>,在其基础上进行了功能升级。
