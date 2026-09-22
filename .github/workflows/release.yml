@@ -1,0 +1,83 @@
+name: Release
+
+# 触发: 推送形如 v* 的 tag(如 v1.2.1)时自动出 release。
+# 设计要点:
+# - mp4/mov 等视频保留在 git 里供 README 引用,但**不打包进 release zip**,
+#   排除规则在这里显式列出,而不是塞进 .gitignore 避免污染其它场景。
+# - 重复推送同名 tag 会覆盖(overwrite_files + replace_assets),asset 不残留。
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read release notes from tag message
+        id: notes
+        run: |
+          # 优先用 tag 的注释信息(annotated tag)作为 release body;
+          # 缺省给一个占位,避免空 body。
+          BODY="$(git tag -l --format='%(contents)' "${{ github.ref_name }}")"
+          if [ -z "$BODY" ]; then
+            BODY="Release ${{ github.ref_name }}"
+          fi
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build zip (excluding docs demo videos)
+        run: |
+          set -euo pipefail
+          STAGE="$(mktemp -d)"
+          # 把仓库拷到临时目录(避免直接对工作目录做删除)
+          cp -R . "$STAGE/repo"
+          # 显式排除: docs/assets/ 下演示视频 + 仓库根意外的视频
+          find "$STAGE/repo" \
+            -type f \( \
+              -name '*.mp4' -o -name '*.mov' -o -name '*.avi' \
+              -o -name '*.wmv' -o -name '*.mkv' -o -name '*.flv' \
+              -o -name '*.webm' \
+            \) -print -delete
+          # 打 zip,根目录名 = "TransNotes-<tag>"
+          cd "$STAGE/repo"
+          ZIP_NAME="TransNotes-${{ github.ref_name }}.zip"
+          zip -r "../$ZIP_NAME" . -x '*.DS_Store' '*.git*'
+          cd "$GITHUB_WORKSPACE"
+          # 把 zip 移到 workspace 顶层(actions/upload-artifact 等也用这里)
+          mv "$STAGE/$ZIP_NAME" "./$ZIP_NAME"
+          # sanity check: 确认 zip 内 0 个视频文件
+          if unzip -l "$ZIP_NAME" | grep -iE '\.(mp4|mov|avi|wmv|mkv|flv|webm)$'; then
+            echo "::error::Video file leaked into release zip"
+            exit 1
+          fi
+          echo "ZIP_OK=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+        id: build
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "TransNotes ${{ github.ref_name }}"
+          body: ${{ steps.notes.outputs.body }}
+          files: ${{ steps.build.outputs.ZIP_OK }}
+          # 重复推同名 tag 时覆盖原 asset(避免同 tag 多 zip 残留)
+          overwrite_files: true
+          replace_assets: true
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
