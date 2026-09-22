@@ -1,5 +1,15 @@
 <p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
 
+# TransNotes — 把看不懂的课程，变成听得懂、记得住的知识
+
+> 本项目灵感来源于 <https://github.com/zarazhangrui/youtube-digest>,在其基础上进行了功能升级。
+
+> [!NOTE]
+> 本项目仅供个人学习与研究使用,请合理合规使用,切勿用于任何商业用途。
+
+> [!WARNING]
+> 本项目与 YouTube、B 站(Bilibili)均无任何隶属或官方关系。字幕数据通过逆向分析的网页接口与登录态 Cookie 获取,可能不符合相关平台的服务条款。使用风险由使用者自行承担——因使用本项目导致的账号处置或数据损失,作者概不负责。
+
 <!--
   GitHub README 不支持相对路径下的 <video> 标签(sanitizer 会过滤掉本地仓库路径)。
   唯一可靠的方式:把 mp4 上传到 GitHub 的 user-attachments CDN(通过未公开但可用的
@@ -13,16 +23,6 @@
 <p align="center">
   <sub>📺 也可以在 <a href="https://www.youtube.com/watch?v=IdUvRAOk-CI">YouTube</a> 观看</sub>
 </p>
-
-# TransNotes — 把看不懂的课程，变成听得懂、记得住的知识
-
-> 本项目灵感来源于 <https://github.com/zarazhangrui/youtube-digest>,在其基础上进行了功能升级。
-
-> [!NOTE]
-> 本项目仅供个人学习与研究使用,请合理合规使用,切勿用于任何商业用途。
-
-> [!WARNING]
-> 本项目与 YouTube、B 站(Bilibili)均无任何隶属或官方关系。字幕数据通过逆向分析的网页接口与登录态 Cookie 获取,可能不符合相关平台的服务条款。使用风险由使用者自行承担——因使用本项目导致的账号处置或数据损失,作者概不负责。
 
 一个 Chrome 扩展(MV3),把 YouTube / B 站视频变成可听、可记、可归档的学习资源:
 
