@@ -1,14 +1,17 @@
 <p align="center"><img src="icons/icon128.png" width="96" alt="TransNotes 图标"></p>
 
+<!--
+  GitHub README 的 sanitizer 会过滤掉 <iframe> 标签,因此无法真正内嵌 YouTube 播放器。
+  这里用 readme-SVG-youtube-preview 服务生成 SVG 视频卡片(缩略图 base64 内嵌,
+  绕过 GitHub image proxy 限制):点击缩略图即可跳转 YouTube 观看说明视频。
+  - width=600: 桌面端合适的展示宽度
+  - title_position=outside_bottom: 标题放在缩略图下方(更像卡片)
+  - radius=10: 圆角与 UI-SPEC.md 的卡片规范一致
+-->
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=IdUvRAOk-CI">
-    <picture>
-      <source srcset="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg">
-      <img src="https://img.youtube.com/vi/IdUvRAOk-CI/hqdefault.jpg" alt="TransNotes 说明视频" width="640">
-    </picture>
+  <a href="https://www.youtube.com/watch?v=IdUvRAOk-CI" title="点击在 YouTube 观看说明视频">
+    <img src="https://readme-svg-youtube-preview.vercel.app/badge?id=IdUvRAOk-CI&width=600&title_position=outside_bottom&radius=10" alt="TransNotes 说明视频" width="600">
   </a>
-  <br>
-  <sub>👆 点击查看说明视频</sub>
 </p>
 
 # TransNotes — 把看不懂的课程，变成听得懂、记得住的知识
