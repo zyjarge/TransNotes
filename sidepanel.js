@@ -247,18 +247,22 @@
     }
   }
 
-  /** 章节卡:左缩略图(16:9),右标题 + 时间码 chip + 摘要;整卡点击跳回视频 */
+  /** 章节卡:左缩略图(16:9,右下角叠时间码 chip),右标题 + 摘要;整卡点击跳回视频
+   *
+   * 时间戳显示策略: chip 绝对定位在缩略图右下角(半透明黑底 + 背景模糊 + 白字),
+   * 不管缩略图是否加载都稳定可见,与 .ch-thumb 共存,不需要清掉 chip。 */
   function buildChapterCard(ch) {
     const card = document.createElement('div');
     card.className = 'chapter-card';
     card.addEventListener('click', () => seekTo(ch.timestampSeconds));
     const thumbWrap = document.createElement('div');
     thumbWrap.className = 'ch-thumb';
+    // 时间码 chip: 绝对定位在右下角(CSS 处理位置和样式)
     const chip = document.createElement('span');
     chip.className = 't';
     chip.textContent = ch.timestamp || '0:00';
     thumbWrap.appendChild(chip);
-    // 有缓存的预览图则替换占位
+    // 有缓存的预览图则叠加在 chip 之前(后插入的 img 视觉上覆盖背景,chip 仍在右下角浮于 img 之上)
     if (globalThis.VdcThumbs && currentKey) {
       VdcThumbs.getThumb(currentKey, Math.round(ch.timestampSeconds || 0)).then((dataUrl) => {
         if (!dataUrl) return;
@@ -270,8 +274,8 @@
           e.stopPropagation();
           if (globalThis.DubShotEdit) DubShotEdit.view({ dataUrl });
         });
-        thumbWrap.innerHTML = '';
-        thumbWrap.appendChild(img);
+        // 缩略图直接追加,与 chip 是兄弟节点(不替换),保持 chip 稳定显示
+        thumbWrap.insertBefore(img, chip);
       });
     }
     const info = document.createElement('div');
