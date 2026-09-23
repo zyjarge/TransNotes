@@ -74,7 +74,9 @@
                 background: var(--panel); display: flex; align-items: center;
                 justify-content: center; overflow: hidden; position: relative; }
     .ch-thumb img { width: 100%; height: 100%; object-fit: cover; display: block;
-                    border-radius: 6px; cursor: zoom-in; }
+                    border-radius: 6px; cursor: pointer; }
+    /* 历史: img 曾经 cursor: zoom-in + 点击放大预览 (DubShotEdit.view);
+       现点击行为改为跳视频, 光标跟着改为 pointer 提示可点击跳转. */
     /* 缩略图右下角时间码 chip: 半透明黑底 + 白字 + 背景模糊,模仿 YouTube/B 站章节预览 */
     .ch-thumb .t {
       position: absolute; right: 4px; bottom: 4px;
