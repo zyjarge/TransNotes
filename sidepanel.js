@@ -250,7 +250,11 @@
   /** 章节卡:左缩略图(16:9,右下角叠时间码 chip),右标题 + 摘要;整卡点击跳回视频
    *
    * 时间戳显示策略: chip 绝对定位在缩略图右下角(半透明黑底 + 背景模糊 + 白字),
-   * 不管缩略图是否加载都稳定可见,与 .ch-thumb 共存,不需要清掉 chip。 */
+   * 不管缩略图是否加载都稳定可见,与 .ch-thumb 共存,不需要清掉 chip。
+   *
+   * 点击行为: 整卡任意位置点击都跳转视频(chip 也跟着跳转,不再"打开缩略图预览");
+   * 历史: 曾让缩略图点击 stopPropagation + 调 DubShotEdit.view 打开大图, 但用户实际
+   * 操作中"点缩略图想跳视频"的意图更普遍, 移除了预览交互。 */
   function buildChapterCard(ch) {
     const card = document.createElement('div');
     card.className = 'chapter-card';
@@ -269,12 +273,8 @@
         const img = document.createElement('img');
         img.src = dataUrl;
         img.alt = ch.title || '';
-        img.title = '点击放大预览';
-        img.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (globalThis.DubShotEdit) DubShotEdit.view({ dataUrl });
-        });
-        // 缩略图直接追加,与 chip 是兄弟节点(不替换),保持 chip 稳定显示
+        // 缩略图点击统一走整卡跳转(无需 stopPropagation), 不再触发 DubShotEdit 预览
+        // img 不再单独 addEventListener, 由 card 的 click handler 接管
         thumbWrap.insertBefore(img, chip);
       });
     }
