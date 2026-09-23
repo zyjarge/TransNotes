@@ -894,7 +894,11 @@
         if (!aid || !cid) throw new Error('缺少视频参数');
         const resp = await biliFetchJson(`https://api.bilibili.com/x/player/videoshot?aid=${aid}&cid=${cid}`);
         if (resp.code !== 0 || !resp.data) throw new Error('预览图接口失败');
-        const pv = VdcThumbs.parsePvdata(resp.data.pvdata || resp.data, duration);
+        // resp.data 是顶层对象, 包含 image/img_x_len/img_y_len/img_x_size/img_y_size/pvdata;
+        // 其中 pvdata 子对象只含帧时间戳序列, 不含 image 数组. parsePvdata 期望顶层 data.
+        // 历史 bug: 之前写成 parsePvdata(resp.data.pvdata || resp.data, ...) 由于 pvdata
+        // 永远 truthy 短路取错对象, image 数组不存在 → parsePvdata 返回 null → 永远不显示缩略图.
+        const pv = VdcThumbs.parsePvdata(resp.data, duration);
         if (!pv) throw new Error('该视频无预览图数据');
         const timestamps = Array.isArray(msg.timestamps) ? msg.timestamps : [];
         const frames = timestamps.map((t) => ({ t: Math.round(t), frame: pv.frameAt(t) }));
@@ -906,7 +910,11 @@
         }
         const out = {};
         for (const [url, list] of byUrl) {
-          const imgResp = await chrome.runtime.sendMessage({ type: 'FETCH_IMAGE', url });
+          // B 站 videoshot 雪碧图 URL 是协议相对的 (//i0.hdslb.com/...);
+          // background.js 的 FETCH_IMAGE handler 仅接受 https://, 走通用补全在此完成
+          // (用 location.protocol 避免 hardcode 'https:', HTTP 环境也能跑)
+          const absUrl = url.startsWith('//') ? location.protocol + url : url;
+          const imgResp = await chrome.runtime.sendMessage({ type: 'FETCH_IMAGE', url: absUrl });
           if (!imgResp || !imgResp.ok) continue;
           const dataUrl = `data:${imgResp.mime || 'image/jpeg'};base64,${imgResp.base64}`;
           for (const f of list) {
