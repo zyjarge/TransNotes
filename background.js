@@ -769,7 +769,8 @@ async function handleGenAutoNote(msg) {
  * 助教提问:组装上下文(标题+概览+前后字幕+近期问答)调文本模型,
  * 问答持久化(ask:{videoKey}),导出草稿时并入「助教问答」章节。
  * msg.image 为提问时刻的视频画面截图(dataURL):视觉模型带图回答;
- * 服务器拒绝图片(4xx)时标记该模型不支持视觉并自动纯文本重试(degraded)
+ * 服务器以 400 拒绝图片(模型不收图)时按模型名缓存能力并自动纯文本重试(degraded);
+ * 429/408 等临时错误不写入缓存——一次限流不应永久静默禁用截图
  */
 async function handleAskTutor(msg) {
   try {
@@ -784,14 +785,18 @@ async function handleAskTutor(msg) {
     // 视觉能力探测结果按模型名缓存:已知不支持图的模型直接纯文本
     const capKey = 'visioncap:' + (ai.model || 'deepseek-chat');
     const stored = await chrome.storage.local.get(capKey);
-    if (stored[capKey] === 'no') image = null;
+    const cachedNoVision = stored[capKey] === 'no';
+    if (cachedNoVision) image = null;
     try {
       const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, { image });
-      return { ok: true, qa };
+      // 缓存命中导致本次实际没带图:回 degraded 让侧栏提示「已按字幕文本回答」,不再静默丢截图
+      return { ok: true, qa, degraded: cachedNoVision && !!msg.image };
     } catch (e) {
       const errMsg = String((e && e.message) || e);
-      // 带图被拒(4xx 客户端错误):标记该模型不支持视觉,纯文本重试一次
-      if (image && /AI 接口返回 4\d\d/.test(errMsg)) {
+      // 带图被拒:仅 400 是「模型不支持图片」的明确信号,写入能力缓存并无图重试;
+      // 429/408/401/403 等临时或无关错误照常抛出,不毒化缓存
+      if (image && /AI 接口返回 400[:：]/.test(errMsg)) {
+        console.warn('[transnotes] 带图提问被 400 拒绝,判定模型不支持视觉,降级纯文本:', errMsg);
         await chrome.storage.local.set({ [capKey]: 'no' }).catch(() => {});
         const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, {});
         return { ok: true, qa, degraded: true };
