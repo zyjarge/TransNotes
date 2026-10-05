@@ -158,6 +158,8 @@
       document.querySelectorAll('.content section').forEach((s) => {
         s.classList.toggle('on', s.id === 'sec-' + btn.dataset.sec);
       });
+      // 切到数据统计页时刷新快照(清理缓存后数字即变)
+      if (btn.dataset.sec === 'stats') renderStats();
     });
   });
 
@@ -343,6 +345,92 @@
       alert((e && e.message) || String(e));
     }
   });
+
+  /* ---------------- 数据统计 ---------------- */
+
+  /** 占比条配色(按分类顺序) */
+  const STAT_COLORS = ['#e86a5f', '#f0a35e', '#7fb069', '#5aa9e6', '#9b7ede', '#6c9a8b', '#c7b299', '#a0a4a8', '#d3d3d3'];
+
+  function statRow(k, v) {
+    return `<div class="stat-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  }
+
+  /** 渲染数据统计页:存储用量 / 内容统计 / 缓存清理 */
+  async function renderStats() {
+    const boxStorage = $('stats-storage');
+    const boxContent = $('stats-content');
+    const boxClean = $('stats-clean');
+    boxStorage.textContent = '统计中...';
+    boxContent.textContent = '';
+    boxClean.textContent = '';
+    let s;
+    try {
+      s = await VdcStats.collect();
+    } catch (e) {
+      boxStorage.textContent = '统计失败:' + ((e && e.message) || e);
+      return;
+    }
+    const fmt = VdcStats.formatBytes;
+
+    // 存储用量:总量 + 分类占比条 + 逐类明细
+    const total = Math.max(1, s.categories.reduce((sum, c) => sum + c.bytes, 0));
+    let html = statRow('总占用(浏览器口径)', fmt(s.bytesInUse));
+    html += '<div class="stat-bar">' +
+      s.categories.map((c, i) =>
+        `<i style="width:${(c.bytes / total * 100).toFixed(2)}%;background:${STAT_COLORS[i % STAT_COLORS.length]}" title="${c.name} ${fmt(c.bytes)}"></i>`
+      ).join('') + '</div>';
+    for (const c of s.categories) {
+      html += statRow(c.name, fmt(c.bytes));
+    }
+    boxStorage.innerHTML = html;
+
+    // 内容与使用
+    let rows = '';
+    rows += statRow('已抓字幕视频', s.videoCount + ' 个');
+    rows += statRow('字幕总句数', s.cueCount + ' 句');
+    rows += statRow('字幕覆盖总时长', VdcStats.formatDuration(s.subSeconds));
+    rows += statRow('已翻译视频', s.translatedVideos + ' 个');
+    rows += statRow('翻译句数', s.translatedCues + ' 句' + (s.polishedCues ? `(另润色 ${s.polishedCues} 句)` : ''));
+    rows += statRow('已配音视频', s.dubbedVideos + ' 个');
+    rows += statRow('配音总时长(估算)', VdcStats.formatDuration(s.dubbedSeconds));
+    rows += statRow('手动笔记', s.notesCount + ' 条 / ' + s.notesChars + ' 字');
+    rows += statRow('AI 概览', s.overviewCount + ' 份');
+    rows += statRow('自动笔记', s.autoNoteCount + ' 份');
+    rows += statRow('笔记草稿', s.draftCount + ' 份');
+    rows += statRow('AI 生成内容总字数', s.aiChars + ' 字');
+    rows += statRow('助教问答', s.qaCount + ' 条');
+    rows += statRow('笔记截图', s.shotCount + ' 张');
+    boxContent.innerHTML = rows;
+
+    // 缓存清理:仅 clearable 分类
+    const clearable = s.categories.filter((c) => c.clearable);
+    boxClean.innerHTML = '';
+    for (const c of clearable) {
+      const row = document.createElement('div');
+      row.className = 'clean-row';
+      const name = document.createElement('span');
+      name.className = 'grow';
+      name.textContent = c.name;
+      const size = document.createElement('span');
+      size.className = 'size';
+      size.textContent = fmt(c.bytes) + ' · ' + c.keys + ' 条';
+      const btn = document.createElement('button');
+      btn.textContent = '清理';
+      btn.disabled = c.keys === 0;
+      btn.addEventListener('click', async () => {
+        if (!confirm(`清理全部${c.name}(${fmt(c.bytes)})?此操作不可恢复。`)) return;
+        const n = await VdcStats.clearCategory(c.id);
+        showStatus(`已清理${c.name} ${n} 条`);
+        renderStats();
+      });
+      row.appendChild(name);
+      row.appendChild(size);
+      row.appendChild(btn);
+      boxClean.appendChild(row);
+    }
+  }
+
+  $('stats-refresh').addEventListener('click', () => { renderStats(); });
 
   /* 未保存保护:修改过配置未保存就离开页面时提示(模板编辑器独立保存,不参与) */
   let optionsDirty = false;
