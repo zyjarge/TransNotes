@@ -84,6 +84,26 @@
     #tpl-editor { border: 1px solid var(--line-strong); border-radius: var(--radius);
                   padding: 14px 16px; background: var(--surface); margin-top: 12px; }
     #tpl-prompt { font: 12px/1.6 var(--font-mono); }
+
+    /* 数据统计 */
+    .stat-head { display: flex; align-items: center; justify-content: space-between; }
+    .stat-head label { margin-bottom: 0; }
+    .stat-head button { padding: 2px 12px; font-size: 12px; }
+    .stat-body { margin-top: 10px; font-size: 13px; }
+    .stat-row { display: flex; justify-content: space-between; padding: 4px 0;
+                border-bottom: 1px dashed var(--line); }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row .k { color: var(--dim); }
+    .stat-row .v { font-family: var(--font-mono); }
+    .stat-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden;
+                background: var(--panel); margin: 8px 0 12px; }
+    .stat-bar i { display: block; height: 100%; }
+    .clean-row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+                 border-bottom: 1px dashed var(--line); }
+    .clean-row:last-child { border-bottom: none; }
+    .clean-row .grow { flex: 1; }
+    .clean-row .size { font-family: var(--font-mono); color: var(--dim); font-size: 12px; }
+    .clean-row button { padding: 3px 12px; font-size: 12px; flex: none; }
   </style>
 </head>
 <body>
@@ -93,6 +113,7 @@
       <button data-sec="tts" class="on">语音合成 (TTS)</button>
       <button data-sec="llm">文本模型</button>
       <button data-sec="notes">笔记与导出</button>
+      <button data-sec="stats">数据统计</button>
       <div class="menu-hint">API Key 仅存本机 chrome.storage.local,不上传任何服务器</div>
     </aside>
 
@@ -210,6 +231,27 @@
         </div>
       </section>
 
+      <section id="sec-stats">
+        <h2>数据统计</h2>
+        <div class="sec-desc">本地存储用量与使用统计。统计基于当前缓存快照,清理缓存后相应数字会减少。</div>
+        <div class="field">
+          <div class="stat-head">
+            <label>存储用量</label>
+            <button type="button" id="stats-refresh">刷新</button>
+          </div>
+          <div id="stats-storage" class="stat-body">加载中...</div>
+        </div>
+        <div class="field">
+          <label>内容与使用</label>
+          <div id="stats-content" class="stat-body">加载中...</div>
+        </div>
+        <div class="field">
+          <label>缓存清理</label>
+          <div class="hint">音频/翻译缓存只用于加速重复观看,清理不影响字幕、笔记、问答等数据;再次配音/翻译时会重新生成。</div>
+          <div id="stats-clean" class="stat-body"></div>
+        </div>
+      </section>
+
       <div class="save-bar">
         <button class="primary" id="save">保存</button>
         <span id="save-status"></span>
@@ -219,6 +261,7 @@
 
   <script src="lib/notes.js"></script>
   <script src="lib/exporter.js"></script>
+  <script src="lib/stats.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
