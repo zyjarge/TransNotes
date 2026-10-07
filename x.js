@@ -867,4 +867,67 @@
     })().then(sendResponse);
     return true; // 异步响应
   });
+
+  /**
+   * 章节预览图(概览页用):X 没有 YouTube storyboard / B 站 videoshot 这类
+   * 雪碧图接口,改为真实截帧 —— 逐时间点 seek 视频,经 Background
+   * captureVisibleTab 截屏后裁剪到视频区域(绕开 canvas 跨域污染)。
+   * 结束后恢复原播放位置与暂停状态;配音进行中拒绝,避免 seek 干扰配音
+   */
+  function seekAndWait(video, t) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, 3000); // seek 超时兜底,不卡后续帧
+      function done() {
+        clearTimeout(timer);
+        video.removeEventListener('seeked', done);
+        resolve();
+      }
+      video.addEventListener('seeked', done);
+      video.currentTime = t;
+    });
+  }
+
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'GET_THUMBS') return;
+    (async () => {
+      try {
+        if (!DubCommon.isContextValid()) throw new Error('扩展已更新,请刷新页面后重试');
+        if (state === 'active' || state === 'loading') {
+          throw new Error('配音进行中,暂不能生成预览图');
+        }
+        const video = getVideoElement();
+        if (!video) throw new Error('未找到视频播放器');
+        const timestamps = (Array.isArray(msg.timestamps) ? msg.timestamps : [])
+          .filter((t) => typeof t === 'number' && isFinite(t) && t >= 0);
+        if (!timestamps.length) return { ok: true, thumbs: {} };
+
+        const origTime = video.currentTime;
+        const origPaused = video.paused;
+        video.pause();
+        video.scrollIntoView({ block: 'center' }); // captureVisibleTab 只截可视区
+        await new Promise((r) => setTimeout(r, 300));
+
+        const out = {};
+        for (const t of timestamps) {
+          const target = Math.min(t, Math.max(0, (video.duration || t) - 0.05));
+          await seekAndWait(video, target);
+          const resp = await chrome.runtime.sendMessage({ type: 'CAPTURE_SHOT' });
+          if (resp && resp.ok && resp.dataUrl) {
+            try {
+              out[Math.round(t)] = await DubCommon.cropToElement(resp.dataUrl, video);
+            } catch (e) { /* 单帧裁剪失败跳过 */ }
+          }
+          // captureVisibleTab 限流(约 2 次/秒),拉开间隔
+          await new Promise((r) => setTimeout(r, 600));
+        }
+
+        video.currentTime = origTime; // 恢复现场(不等待 seek 完成)
+        if (!origPaused) video.play().catch(() => {});
+        return { ok: true, thumbs: out };
+      } catch (e) {
+        return { ok: false, error: (e && e.message) || String(e) };
+      }
+    })().then(sendResponse);
+    return true; // 异步响应
+  });
 })();
