@@ -8,7 +8,8 @@
  * - 笔记:观看中捕捉的时间戳笔记,点时间戳跳回视频,可删除
  * - 笔记导出:Markdown 草稿生成/编辑(防抖自动保存)/导出 Obsidian
  *
- * 当前视频识别:轮询活动标签页 URL(YouTube watch/shorts、B 站 video 页,含分 P)。
+ * 当前视频识别:轮询活动标签页 URL(YouTube watch/shorts、B 站 video 页,含分 P、
+ * X 帖子详情页 /status/{id})。
  */
 (function () {
   'use strict';
@@ -40,6 +41,12 @@
         if (!m) return null;
         const p = parseInt(u.searchParams.get('p') || '1', 10) || 1;
         return `bili:${m[1]}:p${p}`;
+      }
+      // X(Twitter)帖子详情页:/status/{id};时间线 URL 不含视频 ID,无法识别
+      if (u.hostname === 'x.com' || u.hostname === 'www.x.com' ||
+          u.hostname === 'twitter.com' || u.hostname === 'mobile.twitter.com') {
+        const m = u.pathname.match(/^\/[^/]+\/status\/(\d+)/);
+        return m ? 'x:' + m[1] : null;
       }
       return null;
     } catch (e) {
