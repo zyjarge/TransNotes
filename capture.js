@@ -38,7 +38,6 @@
     if (hooks) return; // 幂等
     hooks = h || {};
     window.addEventListener('keydown', onKeydown, true);
-    initDraftPrompt();
   }
 
   /**
@@ -386,107 +385,6 @@
     if (container === document.body) el.style.position = 'fixed';
     container.appendChild(el);
     setTimeout(() => el.remove(), 3000);
-  }
-
-  /* ---------------- 草稿生成提示条 ----------------
-   * 视频播放结束(ended)或中途离开(切视频/分P/离开页面)时,
-   * 若该视频有笔记或字幕缓存,提示用户是否生成笔记草稿(由用户决定)。
-   */
-
-  const promptedKeys = new Set(); // 每个视频每次会话只提示一次
-  let lastPromptKey = null;       // 巡检用:上一次看到的 videoKey
-
-  function initDraftPrompt() {
-    // ended 不冒泡,用捕获阶段监听;只响应主视频元素
-    document.addEventListener('ended', (e) => {
-      const v = hooks.getVideo && hooks.getVideo();
-      if (v && e.target === v) {
-        const key = hooks.getVideoKey && hooks.getVideoKey();
-        if (key) maybePrompt(key);
-      }
-    }, true);
-    // 中途离开检测:两站统一用 2 秒巡检比较 videoKey(YouTube SPA 与 B 站分 P 都是无刷新导航)
-    setInterval(() => {
-      if (!DubCommon.isContextValid()) return;
-      const key = hooks.getVideoKey ? hooks.getVideoKey() : null;
-      if (lastPromptKey && key !== lastPromptKey) maybePrompt(lastPromptKey);
-      lastPromptKey = key;
-    }, 2000);
-  }
-
-  async function maybePrompt(videoKey) {
-    if (promptedKeys.has(videoKey) || host) return; // 已提示过 / 捕捉浮层开着时不打扰
-    let notes = [];
-    let doc = null;
-    try {
-      notes = await VdcCache.getNotes(videoKey);
-      doc = await VdcCache.getSubtitles(videoKey);
-    } catch (e) { return; }
-    // 没记过笔记也没开过配音(无字幕缓存)的视频,草稿没有内容,不提示
-    if (!notes.length && !doc) return;
-    promptedKeys.add(videoKey);
-    showBanner(videoKey, notes.length, doc && doc.title);
-  }
-
-  function showBanner(videoKey, noteCount, title) {
-    const banner = document.createElement('div');
-    banner.style.cssText =
-      'position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:101';
-    const root = banner.attachShadow({ mode: 'open' });
-    root.innerHTML = [
-      '<style>',
-      '.bar{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.97);color:#1F2329;',
-      'padding:10px 14px;border-radius:8px;font:13px/1.5 -apple-system,"PingFang SC",sans-serif;',
-      'box-shadow:0 4px 16px rgba(0,0,0,.18);max-width:70vw;border:1px solid #E9E9E6}',
-      '.msg{word-break:break-all}',
-      'button{cursor:pointer;border:none;border-radius:5px;padding:5px 12px;font-size:13px}',
-      '.go{background:#E6485D;color:#fff;font-weight:600}',
-      '.go:hover{background:#D63D52}',
-      '.no{background:transparent;color:#9AA1AB}',
-      '.no:hover{color:#1F2329}',
-      '</style>',
-      '<div class="bar">',
-      '<span class="msg"></span>',
-      '<button class="go">生成草稿</button>',
-      '<button class="no">忽略</button>',
-      '</div>',
-    ].join('');
-    const msg = root.querySelector('.msg');
-    msg.textContent = noteCount > 0
-      ? `「${(title || '该视频').slice(0, 30)}」保存了 ${noteCount} 条笔记,生成笔记草稿?`
-      : `「${(title || '该视频').slice(0, 30)}」已有字幕缓存,生成笔记草稿?`;
-
-    const container = (hooks.getPlayerContainer && hooks.getPlayerContainer()) || document.body;
-    if (container === document.body) {
-      banner.style.position = 'fixed';
-      banner.style.top = '60px';
-    }
-    container.appendChild(banner);
-
-    const dismiss = () => banner.remove();
-    const timer = setTimeout(dismiss, 15000); // 15 秒无操作自动消失
-    root.querySelector('.no').addEventListener('click', () => {
-      clearTimeout(timer);
-      dismiss();
-    });
-    root.querySelector('.go').addEventListener('click', async (e) => {
-      clearTimeout(timer);
-      const btn = e.target;
-      btn.disabled = true;
-      btn.textContent = '生成中...';
-      const resp = await DubCommon.safeSendMessage({ type: 'GEN_DRAFT', videoKey });
-      if (resp && resp.ok) {
-        // 手势允许时直接打开侧边栏;不行则提示用户点扩展图标
-        DubCommon.safeSendMessage({ type: 'OPEN_PANEL' });
-        msg.textContent = '草稿已生成,点击工具栏扩展图标打开笔记面板查看/导出';
-        btn.style.display = 'none';
-        setTimeout(dismiss, 5000);
-      } else {
-        msg.textContent = '生成失败:' + ((resp && resp.error) || '未知错误');
-        btn.textContent = '重试';
-        btn.disabled = false;
-      }
-    });
   }
 
   globalThis.DubCapture = { init, open, isOpen, close };

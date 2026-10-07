@@ -668,21 +668,6 @@ async function handleGenDraft(msg) {
 }
 
 /**
- * 尝试打开侧边栏(页面内「生成草稿」按钮点击后调用)。
- * 需要用户手势;content script 的点击手势经消息传递在部分版本不生效,
- * 失败时静默,由页面提示用户点扩展图标。
- */
-async function handleOpenPanel(sender) {
-  try {
-    const windowId = sender.tab && sender.tab.windowId;
-    await chrome.sidePanel.open({ windowId });
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: (e && e.message) || String(e) };
-  }
-}
-
-/**
  * 仅生成 AI 概览(侧边栏「概览」页签用;结果缓存 oview:{videoKey})
  */
 async function handleGenOverview(msg) {
@@ -884,8 +869,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return await handleAskTutor(msg);
       case 'FETCH_IMAGE':
         return await handleFetchImage(msg);
-      case 'OPEN_PANEL':
-        return await handleOpenPanel(sender);
       default:
         return { ok: false, error: '未知消息类型' };
     }
