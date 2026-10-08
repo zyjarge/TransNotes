@@ -16,6 +16,7 @@
     translateModel: 'deepseek-chat',
     disableThinking: false,
     polishSubtitles: false,
+    tutorHistoryCount: 3, // 助教提问携带的最近问答条数(0-20, 0=不携带)
     overviewLevel: 'normal',
     noteTemplate: 'cornell',
     exportSections: { meta: true, overview: true, notes: true, autoNote: true, qa: true, subtitles: true },
@@ -100,6 +101,9 @@
     $('translateModel').value = merged.translateModel || DEFAULT_OPTIONS.translateModel;
     $('disableThinking').checked = !!merged.disableThinking;
     $('polishSubtitles').checked = !!merged.polishSubtitles;
+    // 0 是合法值(不携带历史), 不能用 || 回退
+    $('tutorHistoryCount').value = merged.tutorHistoryCount != null
+      ? merged.tutorHistoryCount : DEFAULT_OPTIONS.tutorHistoryCount;
     $('overviewLevel').value = merged.overviewLevel || DEFAULT_OPTIONS.overviewLevel;
     populateTplSelect(merged.noteTemplate || DEFAULT_OPTIONS.noteTemplate);
     const es = Object.assign({}, DEFAULT_OPTIONS.exportSections, merged.exportSections || {});
@@ -113,6 +117,7 @@
 
   async function save() {
     const customId = $('customVoiceId').value.trim();    let voiceId = $('voiceId').value;
+    const hc = parseInt($('tutorHistoryCount').value, 10);
     // 清空了自定义 ID 但下拉还停在自定义项上:回落到内置音色,避免"看似清了其实还在用"
     const customOpt = $('voiceId').querySelector('option[data-custom="1"]');
     if (!customId && customOpt && voiceId === customOpt.value) voiceId = VOICES[0].id;
@@ -127,6 +132,7 @@
       translateModel: $('translateModel').value.trim(),
       disableThinking: $('disableThinking').checked,
       polishSubtitles: $('polishSubtitles').checked,
+      tutorHistoryCount: Number.isFinite(hc) ? Math.min(20, Math.max(0, hc)) : DEFAULT_OPTIONS.tutorHistoryCount,
       overviewLevel: $('overviewLevel').value,
       noteTemplate: $('noteTemplate').value,
       exportSections: {

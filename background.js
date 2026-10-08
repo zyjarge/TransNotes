@@ -766,6 +766,8 @@ async function handleAskTutor(msg) {
       model: options.translateModel,
       disableThinking: options.disableThinking,
     };
+    // 助教携带的最近问答条数(设置页可配 0-20; 清洗在 tutor.js 消费端)
+    const historyCount = options.tutorHistoryCount;
     let image = msg.image || null;
     // 视觉能力探测结果按模型名缓存:已知不支持图的模型直接纯文本
     const capKey = 'visioncap:' + (ai.model || 'deepseek-chat');
@@ -773,7 +775,7 @@ async function handleAskTutor(msg) {
     const cachedNoVision = stored[capKey] === 'no';
     if (cachedNoVision) image = null;
     try {
-      const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, { image });
+      const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, { image, historyCount });
       // 缓存命中导致本次实际没带图:回 degraded 让侧栏提示「已按字幕文本回答」,不再静默丢截图
       return { ok: true, qa, degraded: cachedNoVision && !!msg.image };
     } catch (e) {
@@ -783,7 +785,7 @@ async function handleAskTutor(msg) {
       if (image && /AI 接口返回 400[:：]/.test(errMsg)) {
         console.warn('[transnotes] 带图提问被 400 拒绝,判定模型不支持视觉,降级纯文本:', errMsg);
         await chrome.storage.local.set({ [capKey]: 'no' }).catch(() => {});
-        const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, {});
+        const qa = await VdcTutor.ask(msg.videoKey, msg.question, msg.t, ai, { historyCount });
         return { ok: true, qa, degraded: true };
       }
       throw e;
