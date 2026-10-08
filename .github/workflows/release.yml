@@ -31,7 +31,8 @@ jobs:
         run: |
           # checkout 按 commit SHA 拉取,annotated tag 在 CI 里会退化为 lightweight
           # (%(contents) 变成 commit 信息)。先把远端真实 tag 对象拉下来再读注释。
-          git fetch --force origin "tag ${{ github.ref_name }}" || true
+          # 注意:必须用完整 refspec;"git fetch origin tag <name>" 整体加引号会报 invalid refspec
+          git fetch --force origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}" || true
           # 优先用 tag 的注释信息(annotated tag)作为 release body;
           # 缺省给一个占位,避免空 body。
           BODY="$(git tag -l --format='%(contents)' "${{ github.ref_name }}")"
