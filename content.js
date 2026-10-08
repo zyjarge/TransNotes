@@ -986,27 +986,59 @@
     }
   }
 
-  /** 配音期间保持原声静音(用户调音量导致取消静音时自动恢复静音) */
-  function onVolumeChange() {
-    if (state !== 'active') return;
+  /** 配音期间(含首批缓冲)保持原声静音;原声被恢复(调音量/广告结束/元素替换)时立即重新静音 */
+  function enforceMute(reason) {
+    if (state !== 'active' && state !== 'loading') return;
     const video = getVideoElement();
-    if (video && !video.muted) video.muted = true;
+    if (video && !video.muted) {
+      video.muted = true;
+      console.log('[transnotes] 检测到原声恢复(' + reason + '),已重新静音');
+    }
   }
 
-  /** 广告检测:播放器进入 ad-showing 时暂停配音调度 */
+  /** 配音期间保持原声静音(用户调音量导致取消静音时自动恢复静音) */
+  function onVolumeChange() {
+    enforceMute('volumechange');
+  }
+
+  /** 广告检测:进入 ad-showing 时暂停配音调度;广告结束或 video 元素被替换时兜底重新静音
+   *
+   * (issue #4) YouTube 在 mid-roll 广告 / auto-play 切集时会替换 <video> 元素,
+   * 新元素默认有声且没有 volumechange 监听,仅靠启动时的一次 muted=true 会整体失效,
+   * 因此除 class 变化外,同时以 childList+subtree 监听容器内 video 元素的增删。 */
   function watchAds() {
     if (adObserver) adObserver.disconnect();
     const moviePlayer = getPlayerContainer();
     if (!moviePlayer) return;
-    adObserver = new MutationObserver(() => {
+    let wasInAd = moviePlayer.classList.contains('ad-showing');
+    // 启动配音时正值广告(pre-roll):直接暂停调度,等广告结束再恢复
+    if (wasInAd && syncPlayer) syncPlayer.pauseSchedule();
+    adObserver = new MutationObserver((mutations) => {
       const inAd = moviePlayer.classList.contains('ad-showing');
-      if (inAd && syncPlayer) {
-        syncPlayer.pauseSchedule();
-      } else if (!inAd && syncPlayer) {
-        syncPlayer.resumeSchedule();
+      if (inAd !== wasInAd && syncPlayer) {
+        if (inAd) {
+          syncPlayer.pauseSchedule();
+        } else {
+          syncPlayer.resumeSchedule();
+          // 广告结束 YouTube 会把音量恢复到广告前状态(可能还换了 video 元素),兜底重新静音
+          enforceMute('广告结束');
+        }
       }
+      wasInAd = inAd;
+      // video 元素增删(广告/切集/播放器重建):新元素不带静音与监听,主动补静音
+      const videoTouched = mutations.some((m) =>
+        (m.addedNodes.length > 0 || m.removedNodes.length > 0) &&
+        [...m.addedNodes, ...m.removedNodes].some((n) =>
+          n.nodeName === 'VIDEO' || (n.querySelector && n.querySelector('video')))
+      );
+      if (videoTouched) enforceMute('视频元素替换');
     });
-    adObserver.observe(moviePlayer, { attributes: true, attributeFilter: ['class'] });
+    adObserver.observe(moviePlayer, {
+      attributes: true,
+      attributeFilter: ['class'],
+      childList: true,
+      subtree: true,
+    });
   }
 
   /* ---------------- 启动与 SPA 导航 ---------------- */
