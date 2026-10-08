@@ -64,8 +64,15 @@
                     border-left: 3px solid var(--accent); border-radius: var(--radius);
                     padding: 10px 12px; margin-bottom: 12px; }
     .summary-label { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
-    .summary-body { font-size: 13px; }
-    .summary-body p { margin: 3px 0; }
+    /* 概要(v4 结构化)排版: 节奏优先——行高1.75、段间距9px、条目间距5px;
+       accent 只给寻路元素(li marker / 短标签), 不染装饰(书房案头规范) */
+    .summary-body { font-size: 13px; line-height: 1.75; }
+    .summary-body p { margin: 9px 0; }
+    .summary-body > p:first-child { font-size: 14px; font-weight: 500; line-height: 1.7; }
+    .summary-body ul, .summary-body ol { margin: 9px 0; padding-left: 18px; }
+    .summary-body li { margin: 5px 0; }
+    .summary-body li::marker { color: var(--accent); }
+    .summary-body .li-lead { font-weight: 600; }
     .section-label { font-size: 12px; color: var(--dim); font-weight: 600; margin: 12px 0 6px; }
     .chapter-card { display: flex; gap: 10px; padding: 8px; border-radius: 8px;
                     cursor: pointer; align-items: flex-start; }
