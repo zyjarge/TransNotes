@@ -217,6 +217,24 @@
     return saved;
   }
 
+  /** 概要列表项 run-in 短标签强调: "短标签:说明" 形的 li, 把标签包成 600 字重, 便于扫读
+   *  规则: 行首 2-12 字 + 冒号(半/全角), 不含其他标点; 非此形制(无冒号/标签超长/以
+   *  元素开头)静默跳过。MdRender 完成后异步执行, 时间戳 chip 已就位不影响匹配。 */
+  function emphasizeListLeads(container) {
+    const LEAD_RE = /^([^:：,，;；。、]{2,12}[:：])/;
+    for (const li of container.querySelectorAll('li')) {
+      const first = li.firstChild;
+      if (!first || first.nodeType !== Node.TEXT_NODE) continue;
+      const m = first.nodeValue.match(LEAD_RE);
+      if (!m) continue;
+      const lead = document.createElement('span');
+      lead.className = 'li-lead';
+      lead.textContent = m[1];
+      first.nodeValue = first.nodeValue.slice(m[1].length);
+      li.insertBefore(lead, first);
+    }
+  }
+
   async function renderOverview() {
     const wrap = $('overview');
     wrap.innerHTML = '';
@@ -237,7 +255,9 @@
       card.appendChild(label);
       card.appendChild(body);
       wrap.appendChild(card);
-      MdRender.render(body, ov.summary, { onTimestamp: seekTo });
+      // MdRender 异步(时间戳锚点/图片解析), 完成后做列表项短标签强调
+      MdRender.render(body, ov.summary, { onTimestamp: seekTo })
+        .then(() => emphasizeListLeads(body));
     }
     if (ov.chapters && ov.chapters.length) {
       const h = document.createElement('div');
