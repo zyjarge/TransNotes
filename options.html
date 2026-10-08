@@ -162,6 +162,11 @@
           <label for="translateModel">模型</label>
           <input type="text" id="translateModel" placeholder="deepseek-chat">
         </div>
+        <div class="field">
+          <label for="tutorHistoryCount">助教携带历史问答条数</label>
+          <input type="number" id="tutorHistoryCount" min="0" max="20" step="1">
+          <div class="hint">每次向助教提问时带入的最近问答条数(0 = 不携带历史,默认 3,范围 0-20)。越多追问上下文越完整,但消耗更多 token。</div>
+        </div>
         <div class="field checks">
           <label><input type="checkbox" id="disableThinking"> 关闭思考/推理模式(think 链)</label>
           <div class="hint">适用于 MiniMax M2.5+/M3 等支持 thinking 参数的模型(请求带 thinking: {type:"disabled"}),可显著降低 token 消耗与延迟;老版 MiniMax M2 不支持关闭。其他服务商(如 DeepSeek 非推理模型)不受影响。</div>
