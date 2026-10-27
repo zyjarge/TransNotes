@@ -11,13 +11,20 @@
 > 本项目与 YouTube、B 站(Bilibili)、X(Twitter)均无任何隶属或官方关系。字幕数据通过逆向分析的网页接口与登录态 Cookie 获取,可能不符合相关平台的服务条款。使用风险由使用者自行承担——因使用本项目导致的账号处置或数据损失,作者概不负责。
 
 <!--
-  GitHub README 不支持相对路径下的 <video> 标签(sanitizer 会过滤掉本地仓库路径)。
-  唯一可靠的方式:把 mp4 上传到 GitHub 的 user-attachments CDN(通过未公开但可用的
-  uploads.github.com/user-attachments/assets 端点),然后用返回的 https URL 引用。
-  注:asset URL 在 README 实际引用前会返回 404,引用后立即生效。
+  GitHub README 不支持相对路径下的 <video> 标签(sanitizer 会过滤掉本地仓库路径),
+  raw.githubusercontent.com / release asset 也都不可用:
+  - raw 端点对 mp4 返回 application/octet-stream + nosniff,浏览器拒绝媒体加载;
+  - release asset 带 Content-Disposition: attachment,浏览器同样不做内联解析。
+  唯一可靠的方式:把 mp4 以正确的 content_type 上传到 GitHub 的 user-attachments CDN
+  (POST https://uploads.github.com/user-attachments/assets?name=<file>&content_type=video/mp4&repository_id=<id>),
+  然后用返回的 https URL 引用。
+  注 1:asset URL 在被实际引用前返回 404,引用后立即生效 —— 故仓库保留一条引用它的
+       comment 作为"宿主",防止资源被回收后再次失效。
+  注 2:视频必须是 H.264。仓库里的 mp4 原为 H.265/HEVC,Linux 版 Chrome 不带 HEVC
+       解码器,加载成功但 videoWidth=0(黑屏),故 README 引用的是 H.264 转码版本。
 -->
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/7e7dac80-b989-4a46-90cf-a5692c138578" width="640" controls playsinline muted preload="metadata" poster="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg"></video>
+  <video src="https://github.com/user-attachments/assets/b07e5cd9-38b5-4366-9929-75a9ff41e264" width="640" controls playsinline muted preload="metadata" poster="https://img.youtube.com/vi/IdUvRAOk-CI/maxresdefault.jpg"></video>
 </p>
 
 一个 Chrome 扩展(MV3),把 YouTube / B 站 / X(Twitter)视频变成可听、可记、可归档的学习资源:
