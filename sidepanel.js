@@ -75,6 +75,13 @@
       document.querySelectorAll('section').forEach((s) => {
         s.classList.toggle('on', s.id === 'tab-' + btn.dataset.tab);
       });
+      // 切到助教页签:刷新问答列表并拉到底部(最新对话在最后)。
+      // 列表可能比上次看的时候更长(别的标签页/后台新增了问答),
+      // 重新渲染保证内容最新,再滚到底避免用户手动拖拽。
+      // forceScroll:用户是主动点进来的,明确要看到最新一条。
+      if (btn.dataset.tab === 'tutor') {
+        renderQA({ forceScroll: true });
+      }
     });
   });
 
@@ -597,11 +604,17 @@
   // 旧渲染在 await 后于新渲染清空列表再 append,导致整列显示两遍
   let qaRenderSeq = 0;
 
-  async function renderQA() {
+  async function renderQA(opts) {
+    // forceScroll:切到助教页签等明确要「拉到底」的场景,无视用户当前滚动位置。
+    // 否则用粘性底部:用户原本贴着底部才跟随新内容滚动,
+    // 否则保留原滚动位置(避免正在翻看历史时被拽到底)。
+    const forceScroll = !!(opts && opts.forceScroll);
     const seq = ++qaRenderSeq;
+    const stickToBottom = forceScroll || isScrolledToBottom();
     const list = currentKey ? await VdcCache.getQA(currentKey) : [];
     if (seq !== qaRenderSeq) return; // 已有更新的渲染在进行,放弃本次
     const wrap = $('qa-list');
+    const prevScrollTop = getScrollTop();
     wrap.innerHTML = '';
     if (!list.length) {
       wrap.innerHTML = '<div class="empty">观看中遇到不懂的知识点,在下方直接提问——助教会结合当前播放位置前后的字幕解答</div>';
@@ -647,7 +660,49 @@
       div.appendChild(a);
       wrap.appendChild(div);
     }
-    wrap.scrollTop = wrap.scrollHeight;
+    if (stickToBottom) {
+      scrollToLatestQA();
+    } else {
+      setScrollTop(prevScrollTop); // 用户在翻看历史:保持原位置,别把他拽到底
+    }
+  }
+
+  /**
+   * 滚动到最新一条助教问答。
+   *
+   * 注意:#qa-list 是普通块级元素(没有 overflow / 固定高度),
+   * 真正滚动的是整个页面。所以对 wrap.scrollTop 赋值是无效的
+   * (div 的 scrollHeight === clientHeight,scrollTop 恒为 0),
+   * 必须滚 document.scrollingElement。实测验证过这一点。
+   */
+  function scrollToLatestQA() {
+    const scroller = document.scrollingElement || document.documentElement;
+    if (!scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+  }
+
+  /** 当前页面滚动位置 */
+  function getScrollTop() {
+    const scroller = document.scrollingElement || document.documentElement;
+    return scroller ? scroller.scrollTop : 0;
+  }
+
+  /** 设置当前页面滚动位置 */
+  function setScrollTop(top) {
+    const scroller = document.scrollingElement || document.documentElement;
+    if (scroller) scroller.scrollTop = top;
+  }
+
+  /**
+   * 是否已贴在底部(阈值 48px,容忍最后一屏的空白)。
+   * 用于「粘性底部」:用户本来就在底部,新内容到达时跟随滚动;
+   * 用户往上翻了历史,则不打扰。
+   */
+  function isScrolledToBottom() {
+    const scroller = document.scrollingElement || document.documentElement;
+    if (!scroller) return true;
+    const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    return distance <= 48;
   }
 
   let asking = false;
@@ -680,7 +735,8 @@
       if (!resp || !resp.ok) throw new Error((resp && resp.error) || '提问失败');
       if (resp.degraded) setStatus('当前模型不支持图片输入,已按字幕文本回答');
       input.value = '';
-      await renderQA();
+      // forceScroll:刚问完,新回答在最后,必须滚到底让用户看到
+      await renderQA({ forceScroll: true });
     } catch (e) {
       setStatus((e && e.message) || String(e), true);
     } finally {
