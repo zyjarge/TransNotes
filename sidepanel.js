@@ -81,9 +81,24 @@
       // forceScroll:用户是主动点进来的,明确要看到最新一条。
       if (btn.dataset.tab === 'tutor') {
         renderQA({ forceScroll: true });
+        // 页面脚本失效(扩展更新过)时,助教无法取到播放位置与截图;
+        // 主动提示,免得用户提问后才发现「怎么没截图」。
+        checkPageScriptAlive();
       }
     });
   });
+
+  /**
+   * 检查当前视频页的 content script 是否可用;失效则给出明确提示。
+   * 扩展重载/更新后,已打开页面的旧脚本上下文即失效,必须刷新页面。
+   */
+  async function checkPageScriptAlive() {
+    if (!currentKey) return;
+    const alive = await isPageScriptAlive();
+    if (!alive) {
+      setStatus('扩展已更新,本页脚本已失效 —— 请刷新视频页后再用助教(截图/播放位置需要)', true);
+    }
+  }
 
   /* 笔记页内部子标签(自动笔记 / 我的笔记,垂直排列在左侧) */
   document.querySelectorAll('.notes-tabs button').forEach((btn) => {
@@ -706,6 +721,35 @@
   }
 
   let asking = false;
+
+  /**
+   * 探测页面 content script 是否还活着。
+   *
+   * 扩展被重载(开发者点「重载」/更新)后,已打开页面里的 content script
+   * 上下文即失效(chrome.runtime 通信断开),此时:
+   *   - VDC_GET_TIME 无响应 → t 停在 0
+   *   - CAPTURE_FRAME 无响应 → 拿不到截图
+   * 两者都表现为「助教突然不带图了」,且旧代码把异常静默吞掉,用户无从判断。
+   *
+   * 用 chrome.tabs.sendMessage 探一次即可区分:
+   *   reject 且信息含 'Receiving end does not exist' → 页面脚本未注入/已失效
+   */
+  async function isPageScriptAlive() {
+    if (currentTabId == null) return false;
+    try {
+      const resp = await chrome.tabs.sendMessage(currentTabId, { type: 'VDC_GET_TIME' });
+      // 有响应即视为存活(即使 t 为 0 也说明通道通)
+      return !!(resp && resp.ok);
+    } catch (e) {
+      const msg = String((e && e.message) || e || '');
+      // 页面脚本未注入 / 扩展重载后上下文失效 → 都判定为失效,提示用户刷新页面
+      if (msg.includes('Receiving end does not exist')) return false;
+      if (msg.includes('Extension context invalidated')) return false;
+      // 其它错误(页面正在导航等)不直接判死,交给后续逻辑处理
+      return true;
+    }
+  }
+
   async function askTutor() {
     if (asking) return;
     const input = $('qa-input');
@@ -718,22 +762,46 @@
     try {
       // 取当前播放位置定位上下文;页面脚本未就绪时按 0 处理(只用概览做上下文)
       let t = 0;
+      let pageAlive = false;
       try {
         const timeResp = await chrome.tabs.sendMessage(currentTabId, { type: 'VDC_GET_TIME' });
         if (timeResp && timeResp.ok && typeof timeResp.t === 'number') t = timeResp.t;
-      } catch (e) { /* 页面脚本未注入 */ }
+        pageAlive = !!(timeResp && timeResp.ok);
+      } catch (e) {
+        pageAlive = await isPageScriptAlive();
+      }
       // 自动携带提问时刻的视频画面截图(视觉模型可用时上下文更完整;
       // 模型不支持图片时 Background 自动降级为纯文本)
       let image = null;
-      try {
-        const fr = await chrome.tabs.sendMessage(currentTabId, { type: 'CAPTURE_FRAME' });
-        if (fr && fr.ok && fr.dataUrl) image = fr.dataUrl;
-      } catch (e) { /* 截图不可用:纯文本提问 */ }
+      let shotError = '';
+      if (pageAlive) {
+        try {
+          const fr = await chrome.tabs.sendMessage(currentTabId, { type: 'CAPTURE_FRAME' });
+          if (fr && fr.ok && fr.dataUrl) {
+            image = fr.dataUrl;
+          } else {
+            shotError = (fr && fr.error) || '截图失败';
+          }
+        } catch (e) {
+          shotError = (e && e.message) || String(e);
+        }
+      } else {
+        shotError = '页面脚本未响应(扩展可能已更新)';
+      }
       const resp = await chrome.runtime.sendMessage({
         type: 'ASK_TUTOR', videoKey: currentKey, question, t, image,
       });
       if (!resp || !resp.ok) throw new Error((resp && resp.error) || '提问失败');
-      if (resp.degraded) setStatus('当前模型不支持图片输入,已按字幕文本回答');
+      if (resp.degraded) {
+        setStatus('当前模型不支持图片输入,已按字幕文本回答');
+      } else if (!image && shotError) {
+        // 截图没带上时必须给出可操作提示,否则用户只会觉得「截图功能丢了」
+        if (!pageAlive) {
+          setStatus('未能携带画面:扩展刚更新过,请刷新视频页后再提问(本页脚本已失效)', true);
+        } else {
+          setStatus('未能携带画面:' + shotError + ' —— 已按字幕文本回答', true);
+        }
+      }
       input.value = '';
       // forceScroll:刚问完,新回答在最后,必须滚到底让用户看到
       await renderQA({ forceScroll: true });
